@@ -356,10 +356,15 @@ function openProfile() {
   profilePanel.style.display = 'flex';
 }
 
-function showProfile() { openProfile(); }
-
 profileClose.onclick = function() { profilePanel.style.display = 'none'; };
 profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
+
+chatActive.addEventListener('click', function(e) {
+  var el = e.target;
+  if (el.id === 'chat-user-meta' || el.id === 'chat-avatar' || el.closest('#chat-user-meta') || el.closest('#chat-avatar')) {
+    openProfile();
+  }
+});
 
 let typingTimer = null;
 function emitTypingStart() {
