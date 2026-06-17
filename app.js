@@ -346,25 +346,21 @@ chatBack.addEventListener('click', () => {
 });
 
 function openProfile() {
-  const user = activeUserObj;
+  var user = activeUserObj;
   if (!user) return;
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
   profileNickname.textContent = user.nickname;
   profileUsername.textContent = '@' + user.username;
-  profileStatus.textContent = onlineUsersList.some(u => u.id === user.id) ? 'online' : 'offline';
+  profileStatus.textContent = onlineUsersList.some(function(u) { return u.id === user.id; }) ? 'online' : 'offline';
   profilePanel.style.display = 'flex';
 }
 
 profileClose.onclick = function() { profilePanel.style.display = 'none'; };
 profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
 
-chatActive.addEventListener('click', function(e) {
-  var el = e.target;
-  if (el.id === 'chat-user-meta' || el.id === 'chat-avatar' || el.closest('#chat-user-meta') || el.closest('#chat-avatar')) {
-    openProfile();
-  }
-});
+chatUserMeta.addEventListener('click', openProfile);
+chatAvatar.addEventListener('click', openProfile);
 
 let typingTimer = null;
 function emitTypingStart() {
