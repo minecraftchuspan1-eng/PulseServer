@@ -288,7 +288,7 @@ searchInput.addEventListener('blur', () => setTimeout(() => searchResultsDiv.cla
 searchInput.addEventListener('focus', () => { if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input')); });
 
 chatBack.addEventListener('click', () => {
-  if (isMobile) showSidebar();
+  showSidebar();
 });
 
 settingsBtn.addEventListener('click', () => {
