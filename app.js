@@ -337,8 +337,12 @@ chatUserMeta.addEventListener('click', () => {
   profilePanel.style.display = 'flex';
 });
 
-profileClose.addEventListener('click', () => { profilePanel.classList.add('hidden'); });
-profilePanel.addEventListener('click', (e) => { if (e.target === profilePanel) profilePanel.classList.add('hidden'); });
+function hideProfile() { profilePanel.style.display = ''; profilePanel.classList.add('hidden'); }
+
+profileClose.addEventListener('click', hideProfile);
+profilePanel.addEventListener('click', (e) => {
+  if (e.target === profilePanel || e.target.classList.contains('profile-backdrop')) hideProfile();
+});
 
 let typingTimer = null;
 messageInput.addEventListener('input', () => {
