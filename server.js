@@ -89,7 +89,7 @@ async function callGigaChat(userMessage) {
   return data.choices[0].message.content;
 }
 
-async function handleBotResponse(chatId, userMessage, sender, db) {
+async function handleBotResponse(chatId, userMessage, sender, db, io) {
   try {
     const reply = await callGigaChat(userMessage);
     const { rows } = await db.query(
@@ -354,7 +354,7 @@ const io = new Server(server, {
       io.emit('message:new', message[0]);
 
       if (botUser && receiverId && Number(receiverId) === Number(botUser.id)) {
-        handleBotResponse(chatId, content.trim(), currentUser, db);
+        handleBotResponse(chatId, content.trim(), currentUser, db, io);
       }
     });
 
