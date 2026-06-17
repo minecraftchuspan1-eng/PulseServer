@@ -313,10 +313,21 @@ body {
   gap: 10px;
 }
 
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 .chat-user-meta {
   flex: 1;
   min-width: 0;
-  touch-action: manipulation;
 }
 
 .chat-back-btn {

@@ -54,6 +54,7 @@ const profileNickname = $('profile-nickname');
 const profileUsername = $('profile-username');
 const profileStatus = $('profile-status');
 const typingIndicator = $('typing-indicator');
+const profileBtn = $('profile-btn');
 const chatUserMeta = $('chat-user-meta');
 
 let auth, googleProvider;
@@ -359,10 +360,7 @@ function openProfile() {
 profileClose.onclick = function() { profilePanel.style.display = 'none'; };
 profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
 
-chatUserMeta.addEventListener('click', openProfile);
-chatAvatar.addEventListener('click', openProfile);
-chatUserMeta.addEventListener('touchstart', openProfile, {passive:true});
-chatAvatar.addEventListener('touchstart', openProfile, {passive:true});
+profileBtn.addEventListener('click', openProfile);
 
 let typingTimer = null;
 function emitTypingStart() {
