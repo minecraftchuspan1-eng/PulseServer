@@ -333,17 +333,13 @@ function openProfile() {
   profileNickname.textContent = user.nickname;
   profileUsername.textContent = '@' + user.username;
   profileStatus.textContent = onlineUsersList.some(u => u.id === user.id) ? 'online' : 'offline';
-  profilePanel.classList.remove('hidden');
   profilePanel.style.display = 'flex';
 }
 
-function profileTouchHandler(e) { e.preventDefault(); openProfile(); }
 chatUserMeta.addEventListener('click', openProfile);
-chatUserMeta.addEventListener('touchend', profileTouchHandler);
 chatAvatar.addEventListener('click', openProfile);
-chatAvatar.addEventListener('touchend', profileTouchHandler);
 
-function hideProfile() { profilePanel.style.display = ''; profilePanel.classList.add('hidden'); }
+function hideProfile() { profilePanel.style.display = 'none'; }
 
 profileClose.addEventListener('click', hideProfile);
 profilePanel.addEventListener('click', (e) => {

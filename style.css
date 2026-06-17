@@ -713,7 +713,7 @@ body {
 }
 
 .profile-panel.hidden {
-  display: none !important;
+  display: none;
 }
 
 .profile-backdrop {
