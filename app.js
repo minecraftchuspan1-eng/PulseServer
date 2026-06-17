@@ -182,7 +182,7 @@ function connectSocket() {
     if (activeChatId && message.chat_id === activeChatId) {
       renderMessages();
       scrollToBottom();
-    } else if (message.sender_id !== currentUser.id) {
+    } else if (message.receiver_id === currentUser.id) {
       if (!unreadCounts[message.sender_id]) unreadCounts[message.sender_id] = 0;
       unreadCounts[message.sender_id]++;
       loadRecentUsers();
