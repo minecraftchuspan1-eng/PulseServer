@@ -197,23 +197,20 @@ function closeChat() {
   allMessages = [];
   chatActive.style.display = 'none';
   chatPlaceholder.style.display = 'flex';
-  if (isMobile) showSidebar();
+  showSidebar();
 }
 
 function showSidebar() {
   sidebar.classList.remove('mobile-hidden');
-  sidebar.classList.add('mobile-visible');
-  chatArea.classList.remove('mobile-chat-open');
   chatArea.style.display = '';
+  chatArea.classList.remove('mobile-chat-open');
 }
 
 function showChat() {
-  if (isMobile) {
-    sidebar.classList.remove('mobile-visible');
-    sidebar.classList.add('mobile-hidden');
-    chatArea.style.display = 'flex';
-    chatArea.classList.add('mobile-chat-open');
-  }
+  sidebar.classList.remove('mobile-visible');
+  sidebar.classList.add('mobile-hidden');
+  chatArea.style.display = 'flex';
+  chatArea.classList.add('mobile-chat-open');
 }
 
 async function loadAllUsers() {
