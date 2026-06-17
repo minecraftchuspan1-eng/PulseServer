@@ -42,7 +42,7 @@ const usernameBtn = $('username-btn');
 const usernameError = $('username-error');
 const confirmModal = $('confirm-modal');
 const confirmText = $('confirm-text');
-const confirmOk = $('confirm-ok');
+const confirmOkBtn = $('confirm-ok');
 const confirmCancel = $('confirm-cancel');
 
 let auth, googleProvider;
