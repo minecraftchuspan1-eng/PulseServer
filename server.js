@@ -358,6 +358,14 @@ const io = new Server(server, {
       }
     });
 
+    socket.on('typing:start', (data) => {
+      socket.broadcast.emit('typing:start', data);
+    });
+
+    socket.on('typing:stop', (data) => {
+      socket.broadcast.emit('typing:stop', data);
+    });
+
     socket.on('disconnect', () => {
       if (currentUser) {
         onlineUsers.delete(socket.id);

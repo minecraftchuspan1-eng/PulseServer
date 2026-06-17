@@ -4,6 +4,9 @@ let activeChatId = null;
 let activeUserId = null;
 let allMessages = [];
 let allUsers = [];
+let onlineUsersList = [];
+let unreadCounts = {};
+let profileUser = null;
 
 const API = 'https://messenger-server-vwkj-production.up.railway.app';
 const $ = id => document.getElementById(id);
@@ -44,6 +47,14 @@ const confirmModal = $('confirm-modal');
 const confirmText = $('confirm-text');
 const confirmOkBtn = $('confirm-ok');
 const confirmCancel = $('confirm-cancel');
+const profilePanel = $('profile-panel');
+const profileClose = $('profile-close');
+const profileAvatar = $('profile-avatar');
+const profileNickname = $('profile-nickname');
+const profileUsername = $('profile-username');
+const profileStatus = $('profile-status');
+const typingIndicator = $('typing-indicator');
+const chatUserMeta = $('chat-user-meta');
 
 let auth, googleProvider;
 
@@ -152,12 +163,9 @@ function connectSocket() {
   });
 
   socket.on('users:online', (users) => {
+    onlineUsersList = users;
     renderOnlineUsers(users);
-    if (activeUserId) {
-      const online = users.some(u => u.id === activeUserId);
-      chatStatus.textContent = online ? 'online' : 'offline';
-      chatStatus.classList.toggle('online', online);
-    }
+    updateOnlineStatus();
   });
 
   socket.on('messages:history', (messages) => {
@@ -172,6 +180,11 @@ function connectSocket() {
     if (activeChatId && message.chat_id === activeChatId) {
       renderMessages();
       scrollToBottom();
+    } else if (message.sender_id !== currentUser.id) {
+      if (!unreadCounts[message.sender_id]) unreadCounts[message.sender_id] = 0;
+      unreadCounts[message.sender_id]++;
+      loadRecentUsers();
+      playNotification();
     }
     loadRecentUsers();
   });
@@ -189,6 +202,24 @@ function connectSocket() {
   });
 
   socket.on('chats:list', () => {});
+
+  socket.on('typing:start', ({ userId }) => {
+    if (userId === activeUserId) typingIndicator.style.display = 'block';
+  });
+
+  socket.on('typing:stop', ({ userId }) => {
+    if (userId === activeUserId) typingIndicator.style.display = 'none';
+  });
+}
+
+function updateOnlineStatus() {
+  if (activeUserId) {
+    const online = onlineUsersList.some(u => u.id === activeUserId);
+    chatStatus.textContent = online ? 'online' : 'offline';
+    chatStatus.classList.toggle('online', online);
+    const profStatus = document.getElementById('profile-status');
+    if (profStatus) profStatus.textContent = online ? 'online' : 'offline';
+  }
 }
 
 function closeChat() {
@@ -238,7 +269,9 @@ function renderRecentUsers(users) {
   users.forEach(u => {
     const el = document.createElement('div');
     el.className = 'user-item';
-    el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span>`;
+    const count = unreadCounts[u.id] || 0;
+    const badge = count > 0 ? `<div class="unread-badge">${count > 99 ? '99+' : count}</div>` : '';
+    el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span>${badge}`;
     el.addEventListener('click', () => startChat(u));
     recentUsersDiv.appendChild(el);
   });
@@ -291,6 +324,36 @@ chatBack.addEventListener('click', () => {
   showSidebar();
 });
 
+chatUserMeta.addEventListener('click', () => {
+  if (!activeUserId) return;
+  const user = onlineUsersList.find(u => u.id === activeUserId) || allUsers.find(u => u.id === activeUserId);
+  if (!user) return;
+  profileUser = user;
+  profileAvatar.style.background = user.avatar_color;
+  profileAvatar.textContent = user.nickname[0].toUpperCase();
+  profileNickname.textContent = user.nickname;
+  profileUsername.textContent = '@' + user.username;
+  profileStatus.textContent = onlineUsersList.some(u => u.id === user.id) ? 'online' : 'offline';
+  profilePanel.classList.remove('hidden');
+});
+
+profileClose.addEventListener('click', () => { profilePanel.classList.add('hidden'); });
+profilePanel.addEventListener('click', (e) => { if (e.target === profilePanel) profilePanel.classList.add('hidden'); });
+
+let typingTimer = null;
+messageInput.addEventListener('input', () => {
+  if (!activeUserId || !socket) return;
+  socket.emit('typing:start', { userId: currentUser.id, chatId: activeChatId });
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    socket.emit('typing:stop', { userId: currentUser.id });
+  }, 1500);
+});
+messageInput.addEventListener('blur', () => {
+  clearTimeout(typingTimer);
+  if (socket) socket.emit('typing:stop', { userId: currentUser.id });
+});
+
 settingsBtn.addEventListener('click', () => {
   settingsPanel.classList.remove('hidden');
   usernameInput.value = '';
@@ -337,8 +400,9 @@ function startChat(user) {
   chatPartnerName.textContent = user.nickname;
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
-  chatStatus.textContent = 'offline';
-  chatStatus.classList.remove('online');
+  typingIndicator.style.display = 'none';
+  unreadCounts[user.id] = 0;
+  updateOnlineStatus();
   messageInput.focus();
   showChat();
 
@@ -402,6 +466,22 @@ function scrollToBottom() {
   requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
 }
 
+function playNotification() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch {}
+}
+
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
@@ -410,6 +490,8 @@ function sendMessage() {
   if (!content || !activeChatId || !socket || !socket.connected) return;
   socket.emit('message:send', { chatId: activeChatId, content, receiverId: activeUserId });
   messageInput.value = '';
+  clearTimeout(typingTimer);
+  socket.emit('typing:stop', { userId: currentUser.id });
 }
 
 settingsLogout.addEventListener('click', () => {
