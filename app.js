@@ -382,7 +382,14 @@ function renderMessages() {
         e.stopPropagation();
         showConfirm('Delete this message?', () => {
           fetch(API + '/api/messages/' + m.id + '?userId=' + currentUser.id, { method: 'DELETE' })
-            .catch(() => {});
+            .then(res => {
+              if (!res.ok) console.error('Delete failed:', res.status);
+              else {
+                allMessages = allMessages.filter(msg => msg.id !== m.id);
+                if (activeChatId) renderMessages();
+              }
+            })
+            .catch(err => console.error('Delete error:', err));
         });
       });
     }

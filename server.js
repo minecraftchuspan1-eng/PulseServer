@@ -148,7 +148,7 @@ const io = new Server(server, {
     try {
       const { rows: msg } = await db.query('SELECT sender_id FROM messages WHERE id = $1', [messageId]);
       if (!msg.length) return res.status(404).json({ error: 'Not found' });
-      if (msg[0].sender_id !== userId) return res.status(403).json({ error: 'Not your message' });
+      if (Number(msg[0].sender_id) !== Number(userId)) return res.status(403).json({ error: 'Not your message' });
       await db.query('DELETE FROM messages WHERE id = $1', [messageId]);
       io.emit('message:deleted', { messageId });
       res.json({ ok: true });
