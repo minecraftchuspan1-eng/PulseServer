@@ -324,10 +324,10 @@ chatBack.addEventListener('click', () => {
   showSidebar();
 });
 
-chatUserMeta.addEventListener('click', () => {
-  if (!activeUserId) { console.log('profile: no activeUserId'); return; }
+function openProfile() {
+  if (!activeUserId) return;
   const user = onlineUsersList.find(u => u.id === activeUserId) || allUsers.find(u => u.id === activeUserId);
-  if (!user) { console.log('profile: user not found'); return; }
+  if (!user) return;
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
   profileNickname.textContent = user.nickname;
@@ -335,7 +335,10 @@ chatUserMeta.addEventListener('click', () => {
   profileStatus.textContent = onlineUsersList.some(u => u.id === user.id) ? 'online' : 'offline';
   profilePanel.classList.remove('hidden');
   profilePanel.style.display = 'flex';
-});
+}
+
+chatUserMeta.addEventListener('click', openProfile);
+chatAvatar.addEventListener('click', openProfile);
 
 function hideProfile() { profilePanel.style.display = ''; profilePanel.classList.add('hidden'); }
 
