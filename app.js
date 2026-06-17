@@ -325,16 +325,16 @@ chatBack.addEventListener('click', () => {
 });
 
 chatUserMeta.addEventListener('click', () => {
-  if (!activeUserId) return;
+  if (!activeUserId) { console.log('profile: no activeUserId'); return; }
   const user = onlineUsersList.find(u => u.id === activeUserId) || allUsers.find(u => u.id === activeUserId);
-  if (!user) return;
-  profileUser = user;
+  if (!user) { console.log('profile: user not found'); return; }
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
   profileNickname.textContent = user.nickname;
   profileUsername.textContent = '@' + user.username;
   profileStatus.textContent = onlineUsersList.some(u => u.id === user.id) ? 'online' : 'offline';
   profilePanel.classList.remove('hidden');
+  profilePanel.style.display = 'flex';
 });
 
 profileClose.addEventListener('click', () => { profilePanel.classList.add('hidden'); });
