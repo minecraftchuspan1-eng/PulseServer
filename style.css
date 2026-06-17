@@ -185,10 +185,17 @@ body {
   position: relative;
 }
 
-.online-users-section,
+.online-users-section {
+  padding: 8px 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
 .recent-section {
   padding: 8px 16px;
+  max-height: 40%;
   overflow-y: auto;
+  border-top: 1px solid #1e1e28;
 }
 
 .online-users-section h3,
@@ -548,15 +555,18 @@ body {
   background: rgba(239,68,68,0.1);
 }
 
-.online-users-section::-webkit-scrollbar {
+.online-users-section::-webkit-scrollbar,
+.recent-section::-webkit-scrollbar {
   width: 4px;
 }
 
-.online-users-section::-webkit-scrollbar-track {
+.online-users-section::-webkit-scrollbar-track,
+.recent-section::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.online-users-section::-webkit-scrollbar-thumb {
+.online-users-section::-webkit-scrollbar-thumb,
+.recent-section::-webkit-scrollbar-thumb {
   background: #2a2a35;
   border-radius: 2px;
 }
