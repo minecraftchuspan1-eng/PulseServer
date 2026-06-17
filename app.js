@@ -173,18 +173,11 @@ function connectSocket() {
   socket.on('messages:history', (messages) => {
     allMessages = messages;
     if (activeChatId) renderMessages();
-    else {
-      var savedChat = localStorage.getItem('pulse_chat');
-      if (savedChat) {
-        try {
-          var u = JSON.parse(savedChat);
-          if (u.id && u.nickname && allUsers.some(function(x) { return x.id === u.id; })) {
-            startChat(u);
-          } else {
-            localStorage.removeItem('pulse_chat');
-          }
-        } catch {}
-      }
+    else if (!activeChatId) {
+      try {
+        var savedChat = JSON.parse(localStorage.getItem('pulse_chat'));
+        if (savedChat && savedChat.id) startChat(savedChat);
+      } catch {}
     }
     loadRecentUsers();
   });
