@@ -2,12 +2,12 @@ const { Pool } = require('pg');
 
 let pool;
 
-function initDB() {
+async function initDB() {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/pulse',
   });
 
-  pool.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
@@ -15,9 +15,24 @@ function initDB() {
       nickname TEXT NOT NULL,
       avatar_color TEXT NOT NULL DEFAULT '#6366f1',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+    )
   `);
-  pool.query(`
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chats (
+      id SERIAL PRIMARY KEY,
+      name TEXT,
+      type TEXT DEFAULT 'private',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chat_members (
+      chat_id INTEGER NOT NULL REFERENCES chats(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      PRIMARY KEY (chat_id, user_id)
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       sender_id INTEGER NOT NULL REFERENCES users(id),
@@ -26,29 +41,13 @@ function initDB() {
       content TEXT NOT NULL,
       type TEXT DEFAULT 'text',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  pool.query(`
-    CREATE TABLE IF NOT EXISTS chats (
-      id SERIAL PRIMARY KEY,
-      name TEXT,
-      type TEXT DEFAULT 'private',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  pool.query(`
-    CREATE TABLE IF NOT EXISTS chat_members (
-      chat_id INTEGER NOT NULL REFERENCES chats(id),
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      PRIMARY KEY (chat_id, user_id)
-    );
+    )
   `);
 
   return pool;
 }
 
 function getDB() {
-  if (!pool) initDB();
   return pool;
 }
 
