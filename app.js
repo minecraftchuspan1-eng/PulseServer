@@ -32,9 +32,9 @@ const settingsAvatar = $('settings-avatar');
 const settingsNickname = $('settings-nickname');
 const settingsUsername = $('settings-username');
 const settingsLogout = $('settings-logout');
-const addUserInput = $('add-user-input');
-const addUserBtn = $('add-user-btn');
-const addUserError = $('add-user-error');
+const usernameInput = $('username-input');
+const usernameBtn = $('username-btn');
+const usernameError = $('username-error');
 
 const firebaseConfig = {
   apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
@@ -65,15 +65,19 @@ function setUser(user) {
   currentUser = user;
   authScreen.classList.add('hidden');
   appScreen.classList.remove('hidden');
-  myAvatar.style.background = user.avatar_color;
-  myAvatar.textContent = user.nickname[0].toUpperCase();
-  myNickname.textContent = user.nickname;
-  settingsAvatar.style.background = user.avatar_color;
-  settingsAvatar.textContent = user.nickname[0].toUpperCase();
-  settingsNickname.textContent = user.nickname;
-  settingsUsername.textContent = '@' + user.username;
+  updateUserUI();
   connectSocket();
   loadUsers();
+}
+
+function updateUserUI() {
+  myAvatar.style.background = currentUser.avatar_color;
+  myAvatar.textContent = currentUser.nickname[0].toUpperCase();
+  myNickname.textContent = currentUser.nickname;
+  settingsAvatar.style.background = currentUser.avatar_color;
+  settingsAvatar.textContent = currentUser.nickname[0].toUpperCase();
+  settingsNickname.textContent = currentUser.nickname;
+  settingsUsername.textContent = '@' + currentUser.username;
 }
 
 function connectSocket() {
@@ -144,36 +148,50 @@ searchInput.addEventListener('keydown', (e) => {
 
 settingsBtn.addEventListener('click', () => {
   settingsPanel.classList.remove('hidden');
+  usernameInput.value = '';
+  usernameError.textContent = '';
 });
 
 settingsClose.addEventListener('click', () => {
   settingsPanel.classList.add('hidden');
-  addUserError.textContent = '';
+  usernameError.textContent = '';
 });
 
 settingsPanel.addEventListener('click', (e) => {
   if (e.target === settingsPanel) {
     settingsPanel.classList.add('hidden');
-    addUserError.textContent = '';
+    usernameError.textContent = '';
   }
 });
 
-addUserBtn.addEventListener('click', async () => {
-  const username = addUserInput.value.trim().replace('@', '');
-  if (!username) return;
-  addUserError.textContent = '';
-  const user = allUsers.find(u => u.username === username);
-  if (user) {
-    startChat(user);
-    settingsPanel.classList.add('hidden');
-    addUserInput.value = '';
-  } else {
-    addUserError.textContent = 'User @' + username + ' not found';
+usernameBtn.addEventListener('click', async () => {
+  const newUsername = usernameInput.value.trim().replace('@', '');
+  if (!newUsername) return;
+  usernameError.textContent = '';
+  try {
+    const res = await fetch(API + '/api/users/username', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, username: newUsername })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      currentUser.username = data.username;
+      updateUserUI();
+      usernameInput.value = '';
+      usernameError.textContent = 'Username updated!';
+      usernameError.style.color = '#22c55e';
+      setTimeout(() => { usernameError.textContent = ''; usernameError.style.color = '#ef4444'; }, 2000);
+    } else {
+      usernameError.textContent = data.error;
+    }
+  } catch {
+    usernameError.textContent = 'Connection error';
   }
 });
 
-addUserInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') addUserBtn.click();
+usernameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') usernameBtn.click();
 });
 
 function startChat(user) {

@@ -98,6 +98,20 @@ const io = new Server(server, {
     res.json({ users: rows });
   });
 
+  app.put('/api/users/username', async (req, res) => {
+    const { userId, username } = req.body;
+    if (!userId || !username) return res.status(400).json({ error: 'Required' });
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.status(400).json({ error: '3-20 chars, letters, numbers, underscore' });
+    try {
+      const { rows: existing } = await db.query('SELECT id FROM users WHERE username = $1 AND id != $2', [username, userId]);
+      if (existing.length) return res.status(409).json({ error: 'Username taken' });
+      await db.query('UPDATE users SET username = $1 WHERE id = $2', [username, userId]);
+      res.json({ username });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
   io.on('connection', (socket) => {
     let currentUser = null;
 

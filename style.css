@@ -239,8 +239,8 @@ body {
 }
 
 .placeholder-icon {
-  font-size: 64px;
   margin-bottom: 16px;
+  opacity: 0.5;
 }
 
 .chat-header {
@@ -455,12 +455,12 @@ body {
   margin-bottom: 12px;
 }
 
-.add-user-row {
+.change-username-row {
   display: flex;
   gap: 8px;
 }
 
-.add-user-row input {
+.change-username-row input {
   flex: 1;
   padding: 10px 14px;
   border: 1px solid #2a2a35;
@@ -471,11 +471,11 @@ body {
   outline: none;
 }
 
-.add-user-row input:focus {
+.change-username-row input:focus {
   border-color: #6366f1;
 }
 
-.add-user-row button {
+.change-username-row button {
   padding: 10px 16px;
   border: none;
   background: #6366f1;
@@ -486,11 +486,11 @@ body {
   font-size: 14px;
 }
 
-.add-user-row button:hover {
+.change-username-row button:hover {
   opacity: 0.9;
 }
 
-.add-user-error {
+.settings-error {
   color: #ef4444;
   font-size: 13px;
   min-height: 20px;
