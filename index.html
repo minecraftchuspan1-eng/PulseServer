@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulse</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="auth-screen">
+    <div class="auth-box">
+      <div class="auth-logo">Pulse</div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+      <form id="login-form" class="auth-form">
+        <input type="text" placeholder="Username" required>
+        <input type="password" placeholder="Password" required>
+        <button type="submit">Sign In</button>
+        <div class="auth-error"></div>
+      </form>
+      <form id="register-form" class="auth-form hidden">
+        <input type="text" placeholder="Username" required>
+        <input type="password" placeholder="Password" required>
+        <input type="text" placeholder="Nickname" required>
+        <button type="submit">Create Account</button>
+        <div class="auth-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-screen" class="hidden">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Pulse</h2>
+        <div class="user-info">
+          <div class="user-avatar" id="my-avatar"></div>
+          <span id="my-nickname"></span>
+          <button id="logout-btn" title="Logout">✕</button>
+        </div>
+      </div>
+      <div class="sidebar-search">
+        <input type="text" id="search-input" placeholder="Search users...">
+      </div>
+      <div class="online-users-section">
+        <h3>Online</h3>
+        <div id="online-users"></div>
+      </div>
+      <div class="all-users-section">
+        <h3>All Users</h3>
+        <div id="all-users"></div>
+      </div>
+    </aside>
+    <main class="chat-area">
+      <div id="chat-placeholder" class="chat-placeholder">
+        <div class="placeholder-icon">💬</div>
+        <p>Select a user to start chatting</p>
+      </div>
+      <div id="chat-active" class="hidden">
+        <div class="chat-header" id="chat-header">
+          <div class="chat-header-info">
+            <div class="chat-avatar" id="chat-avatar"></div>
+            <div>
+              <div id="chat-partner-name"></div>
+              <div class="chat-status" id="chat-status">offline</div>
+            </div>
+          </div>
+        </div>
+        <div class="messages-container" id="messages-container">
+        </div>
+        <div class="message-input-area">
+          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+          <button id="send-btn">Send</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
