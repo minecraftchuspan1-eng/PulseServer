@@ -40,6 +40,10 @@ const settingsLogout = $('settings-logout');
 const usernameInput = $('username-input');
 const usernameBtn = $('username-btn');
 const usernameError = $('username-error');
+const confirmModal = $('confirm-modal');
+const confirmText = $('confirm-text');
+const confirmOk = $('confirm-ok');
+const confirmCancel = $('confirm-cancel');
 
 const firebaseConfig = {
   apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
@@ -52,6 +56,32 @@ const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 let isMobile = window.innerWidth <= 768;
 window.addEventListener('resize', () => { isMobile = window.innerWidth <= 768; });
+
+let confirmCallback = null;
+
+function showConfirm(text, callback) {
+  confirmText.textContent = text;
+  confirmCallback = callback;
+  confirmModal.classList.remove('hidden');
+}
+
+confirmOk.addEventListener('click', () => {
+  confirmModal.classList.add('hidden');
+  if (confirmCallback) confirmCallback();
+  confirmCallback = null;
+});
+
+confirmCancel.addEventListener('click', () => {
+  confirmModal.classList.add('hidden');
+  confirmCallback = null;
+});
+
+confirmModal.addEventListener('click', (e) => {
+  if (e.target === confirmModal) {
+    confirmModal.classList.add('hidden');
+    confirmCallback = null;
+  }
+});
 
 googleBtn.addEventListener('click', () => {
   auth.signInWithPopup(googleProvider).then(async (result) => {
@@ -130,17 +160,35 @@ function connectSocket() {
 
   socket.on('chat:deleted', ({ chatId }) => {
     if (activeChatId === chatId) {
-      allMessages = allMessages.filter(m => m.chat_id !== chatId);
-      activeChatId = null;
-      activeUserId = null;
-      chatActive.style.display = 'none';
-      chatPlaceholder.style.display = 'flex';
-      if (isMobile) { sidebar.style.display = 'flex'; chatArea.style.display = 'none'; }
+      closeChat();
     }
     loadRecentUsers();
   });
 
   socket.on('chats:list', () => {});
+}
+
+function closeChat() {
+  activeChatId = null;
+  activeUserId = null;
+  allMessages = [];
+  chatActive.style.display = 'none';
+  chatPlaceholder.style.display = 'flex';
+  if (isMobile) showSidebar();
+}
+
+function showSidebar() {
+  sidebar.classList.remove('mobile-hidden');
+  sidebar.classList.add('mobile-visible');
+  chatArea.classList.remove('mobile-chat-open');
+}
+
+function showChat() {
+  if (isMobile) {
+    sidebar.classList.remove('mobile-visible');
+    sidebar.classList.add('mobile-hidden');
+    chatArea.classList.add('mobile-chat-open');
+  }
 }
 
 async function loadAllUsers() {
@@ -217,10 +265,7 @@ searchInput.addEventListener('blur', () => setTimeout(() => searchResultsDiv.cla
 searchInput.addEventListener('focus', () => { if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input')); });
 
 chatBack.addEventListener('click', () => {
-  if (isMobile) {
-    sidebar.style.display = 'flex';
-    chatArea.style.display = 'none';
-  }
+  if (isMobile) showSidebar();
 });
 
 settingsBtn.addEventListener('click', () => {
@@ -269,10 +314,10 @@ function startChat(user) {
   chatPartnerName.textContent = user.nickname;
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
-  updateOnlineStatus(user.id);
+  chatStatus.textContent = 'offline';
+  chatStatus.classList.remove('online');
   messageInput.focus();
-
-  if (isMobile) { sidebar.style.display = 'none'; chatArea.style.display = 'flex'; }
+  showChat();
 
   if (socket && socket.connected) {
     socket.emit('private:start', { userId: user.id }, ({ chatId }) => {
@@ -284,20 +329,11 @@ function startChat(user) {
 
   chatDeleteBtn.onclick = () => {
     if (!activeChatId) return;
-    if (!confirm('Delete this chat for both users?')) return;
-    fetch(API + '/api/chats/' + activeChatId, {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUser.id })
-    }).catch(() => {});
+    showConfirm('Delete this chat for both users?', () => {
+      fetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' })
+        .catch(() => {});
+    });
   };
-}
-
-function updateOnlineStatus(userId) {
-  if (socket) {
-    const online = Array.from(document.querySelectorAll('.online-dot')).length > 0;
-    chatStatus.textContent = 'offline';
-    chatStatus.classList.remove('online');
-  }
 }
 
 function renderMessages() {
@@ -322,11 +358,10 @@ function renderMessages() {
     if (delBtn) {
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!confirm('Delete this message?')) return;
-        fetch(API + '/api/messages/' + m.id, {
-          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id })
-        }).catch(() => {});
+        showConfirm('Delete this message?', () => {
+          fetch(API + '/api/messages/' + m.id + '?userId=' + currentUser.id, { method: 'DELETE' })
+            .catch(() => {});
+        });
       });
     }
     messagesContainer.appendChild(div);

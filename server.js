@@ -17,7 +17,7 @@ const io = new Server(server, {
 
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
@@ -126,7 +126,7 @@ const io = new Server(server, {
 
   app.delete('/api/chats/:chatId', async (req, res) => {
     const { chatId } = req.params;
-    const { userId } = req.body;
+    const userId = req.query.userId;
     if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
@@ -143,7 +143,7 @@ const io = new Server(server, {
 
   app.delete('/api/messages/:messageId', async (req, res) => {
     const { messageId } = req.params;
-    const { userId } = req.body;
+    const userId = req.query.userId;
     if (!messageId || !userId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: msg } = await db.query('SELECT sender_id FROM messages WHERE id = $1', [messageId]);

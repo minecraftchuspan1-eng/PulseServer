@@ -528,6 +528,74 @@ body {
   padding: 20px 0;
 }
 
+.confirm-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+}
+
+.confirm-content {
+  position: relative;
+  background: #1c1c24;
+  border-radius: 14px;
+  padding: 24px;
+  width: 100%;
+  max-width: 320px;
+  border: 1px solid #2a2a35;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+  text-align: center;
+}
+
+.confirm-text {
+  font-size: 15px;
+  color: #e4e4e7;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.confirm-cancel {
+  background: #1e1e28;
+  color: #e4e4e7;
+}
+
+.confirm-cancel:hover {
+  background: #252530;
+}
+
+.confirm-ok {
+  background: #ef4444;
+  color: white;
+}
+
+.confirm-ok:hover {
+  background: #dc2626;
+}
+
 .settings-panel {
   position: fixed;
   inset: 0;
@@ -670,6 +738,74 @@ body {
   background: rgba(239,68,68,0.15);
 }
 
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+}
+
+.confirm-box {
+  position: relative;
+  background: #1c1c24;
+  border-radius: 14px;
+  padding: 24px;
+  width: 100%;
+  max-width: 320px;
+  border: 1px solid #2a2a35;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+}
+
+.confirm-text {
+  font-size: 15px;
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-cancel,
+.confirm-ok {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.confirm-cancel {
+  background: #1e1e28;
+  color: #e4e4e7;
+}
+
+.confirm-cancel:active {
+  background: #252530;
+}
+
+.confirm-ok {
+  background: #ef4444;
+  color: white;
+}
+
+.confirm-ok:active {
+  opacity: 0.8;
+}
+
 .online-users-section::-webkit-scrollbar,
 .recent-section::-webkit-scrollbar {
   width: 3px;
@@ -696,12 +832,20 @@ body {
     min-width: 0;
   }
 
+  .sidebar.mobile-hidden {
+    display: none;
+  }
+
   .chat-area {
     display: none;
     position: fixed;
     inset: 0;
     z-index: 10;
     background: #0f0f13;
+  }
+
+  .chat-area.mobile-chat-open {
+    display: flex;
   }
 
   #chat-active {
