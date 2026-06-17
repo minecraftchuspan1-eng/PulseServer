@@ -20,6 +20,9 @@ const messageInput = $('message-input');
 const sendBtn = $('send-btn');
 const chatPlaceholder = $('chat-placeholder');
 const chatActive = $('chat-active');
+const chatArea = $('chat-area');
+const sidebar = $('sidebar');
+const chatBack = $('chat-back');
 const chatPartnerName = $('chat-partner-name');
 const chatAvatar = $('chat-avatar');
 const chatStatus = $('chat-status');
@@ -46,6 +49,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+let isMobile = window.innerWidth <= 768;
+
+window.addEventListener('resize', () => {
+  isMobile = window.innerWidth <= 768;
+});
 
 googleBtn.addEventListener('click', () => {
   auth.signInWithPopup(googleProvider).then(async (result) => {
@@ -86,8 +95,7 @@ function updateUserUI() {
 
 function connectSocket() {
   if (socket) socket.disconnect();
-  socket = io(API);
-  socket.emit('user:online', currentUser);
+  socket = io(API, { transports: ['polling', 'websocket'] });
 
   socket.on('connect', () => {
     socket.emit('user:online', currentUser);
@@ -105,6 +113,7 @@ function connectSocket() {
 
   socket.on('message:new', (message) => {
     allMessages.push(message);
+    if (allMessages.length > 200) allMessages = allMessages.slice(-200);
     if (activeChatId && (message.chat_id === activeChatId)) {
       renderMessages();
       scrollToBottom();
@@ -215,6 +224,13 @@ searchInput.addEventListener('focus', () => {
   }
 });
 
+chatBack.addEventListener('click', () => {
+  if (isMobile) {
+    sidebar.style.display = 'flex';
+    chatArea.style.display = 'none';
+  }
+});
+
 settingsBtn.addEventListener('click', () => {
   settingsPanel.classList.remove('hidden');
   usernameInput.value = '';
@@ -266,20 +282,35 @@ usernameInput.addEventListener('keydown', (e) => {
 
 function startChat(user) {
   activeUserId = user.id;
-  chatPlaceholder.classList.add('hidden');
-  chatActive.classList.remove('hidden');
+  chatPlaceholder.style.display = 'none';
+  chatActive.style.display = 'flex';
   chatPartnerName.textContent = user.nickname;
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
-  chatStatus.textContent = 'offline';
-  chatStatus.classList.remove('online');
+  updateOnlineStatus(user.id);
   messageInput.focus();
+
+  if (isMobile) {
+    sidebar.style.display = 'none';
+    chatArea.style.display = 'flex';
+  }
 
   if (socket && socket.connected) {
     socket.emit('private:start', { userId: user.id }, ({ chatId }) => {
       activeChatId = chatId;
       renderMessages();
       scrollToBottom();
+    });
+  }
+}
+
+function updateOnlineStatus(userId) {
+  if (socket) {
+    socket.off('users:online');
+    socket.on('users:online', (users) => {
+      const isOnline = users.some(u => u.id === userId);
+      chatStatus.textContent = isOnline ? 'online' : 'offline';
+      chatStatus.classList.toggle('online', isOnline);
     });
   }
 }
@@ -291,7 +322,8 @@ function renderMessages() {
     messagesContainer.innerHTML = '<div class="system-message">No messages yet. Say hello!</div>';
     return;
   }
-  chatMessages.forEach(m => {
+  const show = chatMessages.slice(-50);
+  show.forEach(m => {
     const isOwn = m.sender_id === currentUser.id;
     const div = document.createElement('div');
     div.className = `message ${isOwn ? 'own' : 'other'}`;
@@ -306,7 +338,9 @@ function renderMessages() {
 }
 
 function scrollToBottom() {
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  requestAnimationFrame(() => {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  });
 }
 
 sendBtn.addEventListener('click', sendMessage);
@@ -316,13 +350,7 @@ messageInput.addEventListener('keydown', (e) => {
 
 function sendMessage() {
   const content = messageInput.value.trim();
-  if (!content || !activeChatId || !socket || !socket.connected) {
-    if (!socket || !socket.connected) {
-      authError.textContent = 'Not connected to server';
-      setTimeout(() => { authError.textContent = ''; }, 2000);
-    }
-    return;
-  }
+  if (!content || !activeChatId || !socket || !socket.connected) return;
   socket.emit('message:send', {
     chatId: activeChatId,
     content,
@@ -347,5 +375,8 @@ settingsLogout.addEventListener('click', () => {
 
 const savedUser = localStorage.getItem('pulse_user');
 if (savedUser) {
-  setUser(JSON.parse(savedUser));
+  const user = JSON.parse(savedUser);
+  if (user.id && user.nickname && user.avatar_color) {
+    setUser(user);
+  }
 }
