@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pulse</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -26,19 +27,15 @@
         <div class="user-info">
           <div class="user-avatar" id="my-avatar"></div>
           <span id="my-nickname"></span>
-          <button id="logout-btn" title="Logout">✕</button>
+          <button id="settings-btn" title="Settings">⚙️</button>
         </div>
       </div>
       <div class="sidebar-search">
-        <input type="text" id="search-input" placeholder="Search users...">
+        <input type="text" id="search-input" placeholder="Find user by @username...">
       </div>
       <div class="online-users-section">
         <h3>Online</h3>
         <div id="online-users"></div>
-      </div>
-      <div class="all-users-section">
-        <h3>All Users</h3>
-        <div id="all-users"></div>
       </div>
     </aside>
     <main class="chat-area">
@@ -47,7 +44,7 @@
         <p>Select a user to start chatting</p>
       </div>
       <div id="chat-active" class="hidden">
-        <div class="chat-header" id="chat-header">
+        <div class="chat-header">
           <div class="chat-header-info">
             <div class="chat-avatar" id="chat-avatar"></div>
             <div>
@@ -64,6 +61,37 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-backdrop"></div>
+    <div class="settings-content">
+      <div class="settings-header">
+        <h3>Settings</h3>
+        <button id="settings-close">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-section">
+          <h4>Add user</h4>
+          <div class="add-user-row">
+            <input type="text" id="add-user-input" placeholder="@username">
+            <button id="add-user-btn">Add</button>
+          </div>
+          <div id="add-user-error" class="add-user-error"></div>
+        </div>
+        <div class="settings-section">
+          <h4>Account</h4>
+          <div class="settings-user">
+            <div class="user-avatar" id="settings-avatar"></div>
+            <div>
+              <div id="settings-nickname"></div>
+              <div id="settings-username" class="settings-username"></div>
+            </div>
+          </div>
+        </div>
+        <button id="settings-logout" class="settings-logout">Logout</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>

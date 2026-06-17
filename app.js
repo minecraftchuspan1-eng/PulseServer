@@ -5,13 +5,14 @@ let activeUserId = null;
 let allMessages = [];
 let allUsers = [];
 
+const API = 'https://messenger-server-vwkj-production.up.railway.app';
+
 const $ = id => document.getElementById(id);
 
 const authScreen = $('auth-screen');
 const appScreen = $('app-screen');
 const authError = document.querySelector('.auth-error');
 const onlineUsersDiv = $('online-users');
-const allUsersDiv = $('all-users');
 const messagesContainer = $('messages-container');
 const messageInput = $('message-input');
 const sendBtn = $('send-btn');
@@ -22,11 +23,18 @@ const chatAvatar = $('chat-avatar');
 const chatStatus = $('chat-status');
 const myAvatar = $('my-avatar');
 const myNickname = $('my-nickname');
-const logoutBtn = $('logout-btn');
 const searchInput = $('search-input');
 const googleBtn = $('google-btn');
-
-const API = 'https://messenger-server-vwkj-production.up.railway.app';
+const settingsBtn = $('settings-btn');
+const settingsPanel = $('settings-panel');
+const settingsClose = $('settings-close');
+const settingsAvatar = $('settings-avatar');
+const settingsNickname = $('settings-nickname');
+const settingsUsername = $('settings-username');
+const settingsLogout = $('settings-logout');
+const addUserInput = $('add-user-input');
+const addUserBtn = $('add-user-btn');
+const addUserError = $('add-user-error');
 
 const firebaseConfig = {
   apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
@@ -60,6 +68,10 @@ function setUser(user) {
   myAvatar.style.background = user.avatar_color;
   myAvatar.textContent = user.nickname[0].toUpperCase();
   myNickname.textContent = user.nickname;
+  settingsAvatar.style.background = user.avatar_color;
+  settingsAvatar.textContent = user.nickname[0].toUpperCase();
+  settingsNickname.textContent = user.nickname;
+  settingsUsername.textContent = '@' + user.username;
   connectSocket();
   loadUsers();
 }
@@ -93,7 +105,6 @@ async function loadUsers() {
     const res = await fetch(API + '/api/users');
     const data = await res.json();
     allUsers = data.users.filter(u => u.id !== currentUser.id);
-    renderAllUsers(allUsers);
   } catch {}
 }
 
@@ -117,28 +128,53 @@ function renderOnlineUsers(onlineList) {
   });
 }
 
-function renderAllUsers(users) {
-  allUsersDiv.innerHTML = '';
-  const filtered = searchInput.value
-    ? users.filter(u => u.nickname.toLowerCase().includes(searchInput.value.toLowerCase()) || u.username.toLowerCase().includes(searchInput.value.toLowerCase()))
-    : users;
-  if (filtered.length === 0) {
-    allUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:4px 10px;">No users found</div>';
-    return;
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const query = searchInput.value.trim().replace('@', '');
+    if (!query) return;
+    const user = allUsers.find(u => u.username === query || u.nickname.toLowerCase() === query.toLowerCase());
+    if (user) {
+      startChat(user);
+      searchInput.value = '';
+    } else {
+      onlineUsersDiv.innerHTML = '<div style="color:#ef4444;font-size:13px;padding:4px 10px;">User not found</div>';
+    }
   }
-  filtered.forEach(u => {
-    const el = document.createElement('div');
-    el.className = 'user-item';
-    el.innerHTML = `
-      <div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div>
-      <span class="user-name">${u.nickname}</span>
-    `;
-    el.addEventListener('click', () => startChat(u));
-    allUsersDiv.appendChild(el);
-  });
-}
+});
 
-searchInput.addEventListener('input', () => renderAllUsers(allUsers));
+settingsBtn.addEventListener('click', () => {
+  settingsPanel.classList.remove('hidden');
+});
+
+settingsClose.addEventListener('click', () => {
+  settingsPanel.classList.add('hidden');
+  addUserError.textContent = '';
+});
+
+settingsPanel.addEventListener('click', (e) => {
+  if (e.target === settingsPanel) {
+    settingsPanel.classList.add('hidden');
+    addUserError.textContent = '';
+  }
+});
+
+addUserBtn.addEventListener('click', async () => {
+  const username = addUserInput.value.trim().replace('@', '');
+  if (!username) return;
+  addUserError.textContent = '';
+  const user = allUsers.find(u => u.username === username);
+  if (user) {
+    startChat(user);
+    settingsPanel.classList.add('hidden');
+    addUserInput.value = '';
+  } else {
+    addUserError.textContent = 'User @' + username + ' not found';
+  }
+});
+
+addUserInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') addUserBtn.click();
+});
 
 function startChat(user) {
   activeUserId = user.id;
@@ -209,13 +245,14 @@ function sendMessage() {
   messageInput.value = '';
 }
 
-logoutBtn.addEventListener('click', () => {
+settingsLogout.addEventListener('click', () => {
   auth.signOut();
   if (socket) socket.disconnect();
   currentUser = null;
   activeChatId = null;
   activeUserId = null;
   allMessages = [];
+  settingsPanel.classList.add('hidden');
   appScreen.classList.add('hidden');
   authScreen.classList.remove('hidden');
   authError.textContent = '';
