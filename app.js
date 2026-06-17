@@ -88,20 +88,37 @@ confirmModal.addEventListener('click', (e) => {
 
 googleBtn.addEventListener('click', () => {
   if (!auth) { authError.textContent = 'Firebase not loaded. Check internet.'; return; }
+  authError.textContent = 'Signing in...';
   auth.signInWithPopup(googleProvider).then(async (result) => {
-    const user = result.user;
-    const res = await fetch(API + '/api/auth/google', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: user.uid, displayName: user.displayName, email: user.email })
-    });
-    const data = await res.json();
-    if (res.ok) setUser(data.user);
-    else authError.textContent = data.error;
+    await handleGoogleResult(result);
   }).catch((err) => {
-    authError.textContent = err.message || 'Sign in failed';
-    console.error('Google sign-in error:', err);
+    if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+      authError.textContent = 'Redirecting to Google...';
+      auth.signInWithRedirect(googleProvider);
+    } else {
+      authError.textContent = err.message || 'Sign in failed';
+    }
   });
+});
+
+async function handleGoogleResult(result) {
+  const user = result.user;
+  const res = await fetch(API + '/api/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: user.uid, displayName: user.displayName, email: user.email })
+  });
+  const data = await res.json();
+  if (res.ok) setUser(data.user);
+  else authError.textContent = data.error;
+}
+
+auth.getRedirectResult().then(async (result) => {
+  if (result.user) {
+    await handleGoogleResult(result);
+  }
+}).catch((err) => {
+  console.error('Redirect sign-in error:', err);
 });
 
 function setUser(user) {
