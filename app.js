@@ -345,6 +345,7 @@ chatBack.addEventListener('click', () => {
 
 function openProfile() {
   const user = activeUserObj;
+  console.log('openProfile: user=', user, 'panel=', profilePanel);
   if (!user) return;
   if (!profilePanel) { alert('@' + user.username + '\n' + user.nickname); return; }
   profileAvatar.style.background = user.avatar_color;
