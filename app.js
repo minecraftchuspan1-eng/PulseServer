@@ -208,7 +208,7 @@ function connectSocket() {
   });
 
   socket.on('typing:stop', ({ userId }) => {
-    if (userId === activeUserId) typingIndicator.style.display = 'none';
+    if (userId === activeUserId) { typingIndicator.style.display = 'none'; }
   });
 }
 
@@ -337,8 +337,11 @@ function openProfile() {
   profilePanel.style.display = 'flex';
 }
 
+function profileTouchHandler(e) { e.preventDefault(); openProfile(); }
 chatUserMeta.addEventListener('click', openProfile);
+chatUserMeta.addEventListener('touchend', profileTouchHandler);
 chatAvatar.addEventListener('click', openProfile);
+chatAvatar.addEventListener('touchend', profileTouchHandler);
 
 function hideProfile() { profilePanel.style.display = ''; profilePanel.classList.add('hidden'); }
 
