@@ -33,10 +33,17 @@ body {
   font-size: 36px;
   font-weight: 800;
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
   background: linear-gradient(135deg, #6366f1, #a855f7);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.auth-subtitle {
+  text-align: center;
+  color: #71717a;
+  font-size: 14px;
+  margin-bottom: 28px;
 }
 
 .auth-tabs {

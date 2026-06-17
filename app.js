@@ -6,13 +6,10 @@ let allMessages = [];
 let allUsers = [];
 
 const $ = id => document.getElementById(id);
-const $$ = sel => document.querySelectorAll(sel);
 
 const authScreen = $('auth-screen');
 const appScreen = $('app-screen');
-const loginForm = $('login-form');
-const registerForm = $('register-form');
-const authError = document.querySelectorAll('.auth-error');
+const authError = document.querySelector('.auth-error');
 const onlineUsersDiv = $('online-users');
 const allUsersDiv = $('all-users');
 const messagesContainer = $('messages-container');
@@ -28,57 +25,6 @@ const myNickname = $('my-nickname');
 const logoutBtn = $('logout-btn');
 const searchInput = $('search-input');
 const googleBtn = $('google-btn');
-
-document.querySelectorAll('.auth-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelector('.auth-tab.active').classList.remove('active');
-    tab.classList.add('active');
-    if (tab.dataset.tab === 'login') {
-      loginForm.classList.remove('hidden');
-      registerForm.classList.add('hidden');
-    } else {
-      loginForm.classList.add('hidden');
-      registerForm.classList.remove('hidden');
-    }
-    authError.forEach(el => el.textContent = '');
-  });
-});
-
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const [username, password] = e.target.elements;
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.value, password: password.value })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setUser(data.user);
-    } else {
-      loginForm.querySelector('.auth-error').textContent = data.error;
-    }
-  } catch { loginForm.querySelector('.auth-error').textContent = 'Connection error'; }
-});
-
-registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const [username, password, nickname] = e.target.elements;
-  try {
-    const res = await fetch('/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.value, password: password.value, nickname: nickname.value })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setUser(data.user);
-    } else {
-      registerForm.querySelector('.auth-error').textContent = data.error;
-    }
-  } catch { registerForm.querySelector('.auth-error').textContent = 'Connection error'; }
-});
 
 const firebaseConfig = {
   apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
@@ -99,8 +45,10 @@ googleBtn.addEventListener('click', () => {
     });
     const data = await res.json();
     if (res.ok) setUser(data.user);
-    else document.querySelector('.auth-error').textContent = data.error;
-  }).catch(() => {});
+    else authError.textContent = data.error;
+  }).catch((err) => {
+    authError.textContent = err.message || 'Sign in failed';
+  });
 });
 
 function setUser(user) {
@@ -200,8 +148,6 @@ function startChat(user) {
   chatStatus.textContent = 'offline';
   chatStatus.classList.remove('online');
 
-  document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
-
   if (socket) {
     socket.emit('private:start', { userId: user.id }, ({ chatId }) => {
       activeChatId = chatId;
@@ -211,7 +157,6 @@ function startChat(user) {
   }
 
   if (socket) {
-    const onlineUsers = document.querySelectorAll('.online-dot');
     socket.on('users:online', (users) => {
       const isOnline = users.some(u => u.id === user.id);
       chatStatus.textContent = isOnline ? 'online' : 'offline';
@@ -271,7 +216,5 @@ logoutBtn.addEventListener('click', () => {
   allMessages = [];
   appScreen.classList.add('hidden');
   authScreen.classList.remove('hidden');
-  loginForm.querySelector('.auth-error').textContent = '';
-  loginForm.reset();
-  registerForm.reset();
+  authError.textContent = '';
 });
