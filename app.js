@@ -204,11 +204,11 @@ function connectSocket() {
   socket.on('chats:list', () => {});
 
   socket.on('typing:start', ({ userId }) => {
-    if (userId === activeUserId) typingIndicator.style.display = 'flex';
+    if (typingIndicator && userId === activeUserId) typingIndicator.style.display = 'flex';
   });
 
   socket.on('typing:stop', ({ userId }) => {
-    if (userId === activeUserId) { typingIndicator.style.display = 'none'; }
+    if (typingIndicator && userId === activeUserId) typingIndicator.style.display = 'none';
   });
 
   socket.on('username:changed', ({ userId, username }) => {
@@ -346,6 +346,7 @@ chatBack.addEventListener('click', () => {
 function openProfile() {
   const user = activeUserObj;
   if (!user) return;
+  if (!profilePanel) { alert('@' + user.username + '\n' + user.nickname); return; }
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
   profileNickname.textContent = user.nickname;
@@ -357,12 +358,13 @@ function openProfile() {
 chatUserMeta.addEventListener('click', openProfile);
 chatAvatar.addEventListener('click', openProfile);
 
-function hideProfile() { profilePanel.style.display = 'none'; }
-
-profileClose.addEventListener('click', hideProfile);
-profilePanel.addEventListener('click', (e) => {
-  if (e.target === profilePanel || e.target.classList.contains('profile-backdrop')) hideProfile();
-});
+if (profilePanel) {
+  function hideProfile() { profilePanel.style.display = 'none'; }
+  if (profileClose) profileClose.addEventListener('click', hideProfile);
+  profilePanel.addEventListener('click', (e) => {
+    if (e.target === profilePanel || (e.target.classList && e.target.classList.contains('profile-backdrop'))) hideProfile();
+  });
+}
 
 let typingTimer = null;
 function emitTypingStart() {
@@ -432,7 +434,7 @@ function startChat(user) {
   chatPartnerName.textContent = user.nickname;
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
-  typingIndicator.style.display = 'none';
+  if (typingIndicator) typingIndicator.style.display = 'none';
   unreadCounts[user.id] = 0;
   updateOnlineStatus();
   messageInput.focus();
