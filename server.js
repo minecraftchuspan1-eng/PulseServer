@@ -2,21 +2,9 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-const { initDB, getDB } = require('./db');
+const { initDB } = require('./db');
 
-const FIREBASE_API_KEY = 'AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0';
 
-async function verifyFirebaseToken(idToken) {
-  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || 'Invalid token');
-  return data.users[0];
-}
 
 async function main() {
   const db = await initDB();
@@ -77,11 +65,9 @@ async function main() {
   });
 
   app.post('/api/auth/google', async (req, res) => {
-    const { idToken } = req.body;
-    if (!idToken) return res.status(400).json({ error: 'No token' });
+    const { uid, displayName, email } = req.body;
+    if (!uid) return res.status(400).json({ error: 'No uid' });
     try {
-      const fbUser = await verifyFirebaseToken(idToken);
-      const { localId: uid, displayName, email } = fbUser;
       const nickname = displayName || email || uid.slice(0, 8);
       const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color FROM users WHERE firebase_uid = $1', [uid]);
       if (existing.length) return res.json({ user: existing[0] });
@@ -94,7 +80,7 @@ async function main() {
       );
       res.json({ user: rows[0] });
     } catch (err) {
-      res.status(401).json({ error: 'Invalid token' });
+      res.status(500).json({ error: 'Server error' });
     }
   });
 

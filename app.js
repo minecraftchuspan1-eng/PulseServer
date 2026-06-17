@@ -37,11 +37,11 @@ const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 googleBtn.addEventListener('click', () => {
   auth.signInWithPopup(googleProvider).then(async (result) => {
-    const idToken = await result.user.getIdToken();
+    const user = result.user;
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken })
+      body: JSON.stringify({ uid: user.uid, displayName: user.displayName, email: user.email })
     });
     const data = await res.json();
     if (res.ok) setUser(data.user);
