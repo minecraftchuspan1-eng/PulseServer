@@ -11,12 +11,14 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
+      password TEXT,
       nickname TEXT NOT NULL,
       avatar_color TEXT NOT NULL DEFAULT '#6366f1',
+      firebase_uid TEXT UNIQUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS firebase_uid TEXT UNIQUE');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chats (
       id SERIAL PRIMARY KEY,

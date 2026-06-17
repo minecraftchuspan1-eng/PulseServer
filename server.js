@@ -5,6 +5,17 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const { initDB, getDB } = require('./db');
 
+let firebaseAdmin;
+try {
+  firebaseAdmin = require('firebase-admin');
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    firebaseAdmin.initializeApp({ credential: firebaseAdmin.credential.cert(sa) });
+  }
+} catch (e) {
+  console.log('Firebase Admin not configured');
+}
+
 async function main() {
   const db = await initDB();
 
@@ -60,6 +71,29 @@ async function main() {
       res.json({ user: { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color } });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/auth/google', async (req, res) => {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ error: 'No token' });
+    if (!firebaseAdmin) return res.status(500).json({ error: 'Firebase not configured' });
+    try {
+      const decoded = await firebaseAdmin.auth().verifyIdToken(idToken);
+      const { uid, name, email } = decoded;
+      const nickname = name || email || uid.slice(0, 8);
+      const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color FROM users WHERE firebase_uid = $1', [uid]);
+      if (existing.length) return res.json({ user: existing[0] });
+      const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const username = `google_${uid.slice(0, 8)}`;
+      const { rows } = await db.query(
+        'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color',
+        [username, nickname, color, uid]
+      );
+      res.json({ user: rows[0] });
+    } catch (err) {
+      res.status(401).json({ error: 'Invalid token' });
     }
   });
 

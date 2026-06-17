@@ -27,6 +27,7 @@ const myAvatar = $('my-avatar');
 const myNickname = $('my-nickname');
 const logoutBtn = $('logout-btn');
 const searchInput = $('search-input');
+const googleBtn = $('google-btn');
 
 document.querySelectorAll('.auth-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -77,6 +78,29 @@ registerForm.addEventListener('submit', async (e) => {
       registerForm.querySelector('.auth-error').textContent = data.error;
     }
   } catch { registerForm.querySelector('.auth-error').textContent = 'Connection error'; }
+});
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
+  authDomain: "so2market.firebaseapp.com",
+  projectId: "so2market",
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+googleBtn.addEventListener('click', () => {
+  auth.signInWithPopup(googleProvider).then(async (result) => {
+    const idToken = await result.user.getIdToken();
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    const data = await res.json();
+    if (res.ok) setUser(data.user);
+    else document.querySelector('.auth-error').textContent = data.error;
+  }).catch(() => {});
 });
 
 function setUser(user) {
@@ -239,6 +263,7 @@ function sendMessage() {
 }
 
 logoutBtn.addEventListener('click', () => {
+  auth.signOut();
   if (socket) socket.disconnect();
   currentUser = null;
   activeChatId = null;

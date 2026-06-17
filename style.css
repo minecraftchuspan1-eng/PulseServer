@@ -413,6 +413,44 @@ body {
   opacity: 0.9;
 }
 
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: #52525b;
+  font-size: 13px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #2a2a35;
+}
+
+.google-btn {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #2a2a35;
+  background: #121218;
+  color: #e4e4e7;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.google-btn:hover {
+  background: #1e1e28;
+}
+
 .system-message {
   text-align: center;
   color: #52525b;
