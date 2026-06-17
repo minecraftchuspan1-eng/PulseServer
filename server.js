@@ -88,6 +88,7 @@ const io = new Server(server, {
       );
       res.json({ user: rows[0] });
     } catch (err) {
+      console.error('Google auth error:', err.message, err.stack);
       res.status(500).json({ error: 'Server error' });
     }
   });
