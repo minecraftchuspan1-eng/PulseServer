@@ -107,6 +107,32 @@ async function handleBotResponse(chatId, userMessage, sender, db) {
   }
 }
 
+function getEncryptionKey() {
+  return crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'pulse-default-key!change-me').digest();
+}
+
+function encryptText(text) {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let enc = cipher.update(text, 'utf8', 'hex');
+  enc += cipher.final('hex');
+  return iv.toString('hex') + ':' + enc;
+}
+
+function decryptText(data) {
+  if (!data || !data.includes(':')) return data;
+  try {
+    const key = getEncryptionKey();
+    const parts = data.split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let dec = decipher.update(parts[1], 'hex', 'utf8');
+    dec += decipher.final('utf8');
+    return dec;
+  } catch { return data; }
+}
+
 async function main() {
   const db = await initDB();
   await ensureBotUser(db);
@@ -134,32 +160,6 @@ const io = new Server(server, {
     }));
     if (botUser) list.unshift(botUser);
     return list;
-  }
-
-  function getEncryptionKey() {
-    return crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'pulse-default-key!change-me').digest();
-  }
-
-  function encryptText(text) {
-    const key = getEncryptionKey();
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let enc = cipher.update(text, 'utf8', 'hex');
-    enc += cipher.final('hex');
-    return iv.toString('hex') + ':' + enc;
-  }
-
-  function decryptText(data) {
-    if (!data || !data.includes(':')) return data;
-    try {
-      const key = getEncryptionKey();
-      const parts = data.split(':');
-      const iv = Buffer.from(parts[0], 'hex');
-      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-      let dec = decipher.update(parts[1], 'hex', 'utf8');
-      dec += decipher.final('utf8');
-      return dec;
-    } catch { return data; }
   }
 
   app.post('/api/register', async (req, res) => {
