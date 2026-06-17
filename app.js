@@ -2,11 +2,11 @@ let socket;
 let currentUser = null;
 let activeChatId = null;
 let activeUserId = null;
+let activeUserObj = null;
 let allMessages = [];
 let allUsers = [];
 let onlineUsersList = [];
 let unreadCounts = {};
-let profileUser = null;
 
 const API = 'https://messenger-server-vwkj-production.up.railway.app';
 const $ = id => document.getElementById(id);
@@ -210,6 +210,14 @@ function connectSocket() {
   socket.on('typing:stop', ({ userId }) => {
     if (userId === activeUserId) { typingIndicator.style.display = 'none'; }
   });
+
+  socket.on('username:changed', ({ userId, username }) => {
+    const u = allUsers.find(x => x.id === userId);
+    if (u) u.username = username;
+    if (activeUserObj && activeUserObj.id === userId) activeUserObj.username = username;
+    const userEl = document.querySelector('#profile-username');
+    if (userEl && activeUserObj && activeUserObj.id === userId) userEl.textContent = '@' + username;
+  });
 }
 
 function updateOnlineStatus() {
@@ -225,6 +233,7 @@ function updateOnlineStatus() {
 function closeChat() {
   activeChatId = null;
   activeUserId = null;
+  activeUserObj = null;
   allMessages = [];
   chatActive.style.display = 'none';
   chatPlaceholder.style.display = 'flex';
@@ -280,8 +289,18 @@ function renderRecentUsers(users) {
 function renderOnlineUsers(onlineList) {
   onlineUsersDiv.innerHTML = '';
   const seen = new Set();
-  const others = onlineList.filter(u => u.id !== currentUser.id && !seen.has(u.id) && seen.add(u.id));
+  const recentIds = new Set();
+  document.querySelectorAll('#recent-users .user-item').forEach(el => {
+    const name = el.querySelector('.user-name');
+    if (name) recentIds.add(name.textContent);
+  });
+  const others = onlineList.filter(u =>
+    u.id !== currentUser.id && !seen.has(u.id) && seen.add(u.id) &&
+    (recentIds.has(u.nickname) || u.username === 'pulsechatbot')
+  );
   if (!others.length) {
+    const botInList = onlineList.some(u => u.username === 'pulsechatbot' && u.id !== currentUser.id);
+    if (botInList) return;
     onlineUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:8px 10px;">No one online</div>';
     return;
   }
@@ -325,8 +344,7 @@ chatBack.addEventListener('click', () => {
 });
 
 function openProfile() {
-  if (!activeUserId) return;
-  const user = onlineUsersList.find(u => u.id === activeUserId) || allUsers.find(u => u.id === activeUserId);
+  const user = activeUserObj;
   if (!user) return;
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
@@ -347,18 +365,25 @@ profilePanel.addEventListener('click', (e) => {
 });
 
 let typingTimer = null;
-messageInput.addEventListener('input', () => {
-  if (!activeUserId || !socket) return;
+function emitTypingStart() {
+  if (!activeUserId || !socket || !socket.connected) return;
   socket.emit('typing:start', { userId: currentUser.id, chatId: activeChatId });
+}
+function emitTypingStop() {
   clearTimeout(typingTimer);
-  typingTimer = setTimeout(() => {
-    socket.emit('typing:stop', { userId: currentUser.id });
-  }, 1500);
-});
-messageInput.addEventListener('blur', () => {
+  if (socket && socket.connected) socket.emit('typing:stop', { userId: currentUser.id });
+}
+messageInput.addEventListener('input', () => {
+  emitTypingStart();
   clearTimeout(typingTimer);
-  if (socket) socket.emit('typing:stop', { userId: currentUser.id });
+  typingTimer = setTimeout(emitTypingStop, 1500);
 });
+messageInput.addEventListener('keydown', () => {
+  emitTypingStart();
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(emitTypingStop, 1500);
+});
+messageInput.addEventListener('blur', emitTypingStop);
 
 settingsBtn.addEventListener('click', () => {
   settingsPanel.classList.remove('hidden');
@@ -401,6 +426,7 @@ usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') userna
 
 function startChat(user) {
   activeUserId = user.id;
+  activeUserObj = user;
   chatPlaceholder.style.display = 'none';
   chatActive.style.display = 'flex';
   chatPartnerName.textContent = user.nickname;
@@ -496,8 +522,7 @@ function sendMessage() {
   if (!content || !activeChatId || !socket || !socket.connected) return;
   socket.emit('message:send', { chatId: activeChatId, content, receiverId: activeUserId });
   messageInput.value = '';
-  clearTimeout(typingTimer);
-  socket.emit('typing:stop', { userId: currentUser.id });
+  emitTypingStop();
 }
 
 settingsLogout.addEventListener('click', () => {

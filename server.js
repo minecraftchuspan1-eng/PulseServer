@@ -248,6 +248,7 @@ const io = new Server(server, {
       const { rows: existing } = await db.query('SELECT id FROM users WHERE username = $1 AND id != $2', [username, userId]);
       if (existing.length) return res.status(409).json({ error: 'Username taken' });
       await db.query('UPDATE users SET username = $1 WHERE id = $2', [username, userId]);
+      io.emit('username:changed', { userId, username });
       res.json({ username });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
