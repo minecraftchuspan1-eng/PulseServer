@@ -26,6 +26,8 @@ const logoutBtn = $('logout-btn');
 const searchInput = $('search-input');
 const googleBtn = $('google-btn');
 
+const API = 'https://messenger-server-vwkj-production.up.railway.app';
+
 const firebaseConfig = {
   apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
   authDomain: "so2market.firebaseapp.com",
@@ -38,7 +40,7 @@ const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleBtn.addEventListener('click', () => {
   auth.signInWithPopup(googleProvider).then(async (result) => {
     const user = result.user;
-    const res = await fetch('/api/auth/google', {
+    const res = await fetch(API + '/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid: user.uid, displayName: user.displayName, email: user.email })
@@ -63,7 +65,7 @@ function setUser(user) {
 }
 
 function connectSocket() {
-  socket = io();
+  socket = io(API);
   socket.emit('user:online', currentUser);
 
   socket.on('users:online', (users) => {
@@ -88,7 +90,7 @@ function connectSocket() {
 
 async function loadUsers() {
   try {
-    const res = await fetch('/api/users');
+    const res = await fetch(API + '/api/users');
     const data = await res.json();
     allUsers = data.users.filter(u => u.id !== currentUser.id);
     renderAllUsers(allUsers);

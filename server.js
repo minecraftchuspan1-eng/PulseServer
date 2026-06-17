@@ -9,12 +9,20 @@ const { initDB } = require('./db');
 async function main() {
   const db = await initDB();
 
-  const app = express();
-  const server = http.createServer(app);
-  const io = new Server(server);
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: ['http://pulse.xo.je', 'https://pulse.xo.je', 'http://localhost:3000', 'http://localhost:5500'], methods: ['GET', 'POST'] }
+});
 
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+  });
   app.use(express.json());
-  app.use(express.static(__dirname));
 
   const onlineUsers = new Map();
 
