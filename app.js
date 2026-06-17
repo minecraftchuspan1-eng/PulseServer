@@ -204,7 +204,7 @@ function connectSocket() {
   socket.on('chats:list', () => {});
 
   socket.on('typing:start', ({ userId }) => {
-    if (userId === activeUserId) typingIndicator.style.display = 'block';
+    if (userId === activeUserId) typingIndicator.style.display = 'flex';
   });
 
   socket.on('typing:stop', ({ userId }) => {
