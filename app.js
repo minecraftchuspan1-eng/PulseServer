@@ -356,7 +356,9 @@ function openProfile() {
 }
 
 chatUserMeta.addEventListener('click', openProfile);
+chatUserMeta.addEventListener('touchend', function(e) { e.preventDefault(); openProfile(); });
 chatAvatar.addEventListener('click', openProfile);
+chatAvatar.addEventListener('touchend', function(e) { e.preventDefault(); openProfile(); });
 
 if (profilePanel) {
   function hideProfile() { profilePanel.style.display = 'none'; }
