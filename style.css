@@ -316,6 +316,7 @@ body {
 .chat-user-meta {
   flex: 1;
   min-width: 0;
+  touch-action: manipulation;
 }
 
 .chat-back-btn {
@@ -374,6 +375,7 @@ body {
   color: white;
   flex-shrink: 0;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 #chat-partner-name {

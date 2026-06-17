@@ -361,6 +361,8 @@ profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel
 
 chatUserMeta.addEventListener('click', openProfile);
 chatAvatar.addEventListener('click', openProfile);
+chatUserMeta.addEventListener('touchstart', openProfile, {passive:true});
+chatAvatar.addEventListener('touchstart', openProfile, {passive:true});
 
 let typingTimer = null;
 function emitTypingStart() {
