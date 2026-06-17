@@ -348,21 +348,18 @@ chatBack.addEventListener('click', () => {
 function openProfile() {
   const user = activeUserObj;
   if (!user) return;
-  const status = onlineUsersList.some(u => u.id === user.id) ? '🟢 online' : 'offline';
-  confirmText.innerHTML = '<div style="text-align:center"><div style="width:64px;height:64px;border-radius:50%;background:' + user.avatar_color + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:28px;color:white;margin:0 auto 12px">' + user.nickname[0].toUpperCase() + '</div><div style="font-size:18px;font-weight:700">' + user.nickname + '</div><div style="font-size:14px;color:#71717a;margin-top:4px">@' + user.username + '</div><div style="font-size:13px;margin-top:8px;color:#52525b">' + status + '</div></div>';
-  confirmOk.style.display = 'none';
-  confirmCancel.textContent = 'Close';
-  confirmModal.style.display = 'flex';
+  profileAvatar.style.background = user.avatar_color;
+  profileAvatar.textContent = user.nickname[0].toUpperCase();
+  profileNickname.textContent = user.nickname;
+  profileUsername.textContent = '@' + user.username;
+  profileStatus.textContent = onlineUsersList.some(u => u.id === user.id) ? 'online' : 'offline';
+  profilePanel.style.display = 'flex';
 }
 
-chatUserMeta.addEventListener('click', openProfile);
-chatUserMeta.addEventListener('touchend', function(e) { e.preventDefault(); openProfile(); });
-chatAvatar.addEventListener('click', openProfile);
-chatAvatar.addEventListener('touchend', function(e) { e.preventDefault(); openProfile(); });
+function showProfile() { openProfile(); }
 
-if (confirmCancel) {
-  confirmCancel.addEventListener('click', hideConfirm);
-}
+profileClose.onclick = function() { profilePanel.style.display = 'none'; };
+profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
 
 let typingTimer = null;
 function emitTypingStart() {
