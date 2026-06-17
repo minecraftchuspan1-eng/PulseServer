@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 const bcrypt = require('bcryptjs');
 const { initDB } = require('./db');
@@ -30,6 +31,32 @@ const io = new Server(server, {
     return Array.from(onlineUsers.values()).map(u => ({
       id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color
     }));
+  }
+
+  function getEncryptionKey() {
+    return crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY || 'pulse-default-key!change-me').digest();
+  }
+
+  function encryptText(text) {
+    const key = getEncryptionKey();
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let enc = cipher.update(text, 'utf8', 'hex');
+    enc += cipher.final('hex');
+    return iv.toString('hex') + ':' + enc;
+  }
+
+  function decryptText(data) {
+    if (!data || !data.includes(':')) return data;
+    try {
+      const key = getEncryptionKey();
+      const parts = data.split(':');
+      const iv = Buffer.from(parts[0], 'hex');
+      const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+      let dec = decipher.update(parts[1], 'hex', 'utf8');
+      dec += decipher.final('utf8');
+      return dec;
+    } catch { return data; }
   }
 
   app.post('/api/register', async (req, res) => {
@@ -185,6 +212,7 @@ const io = new Server(server, {
         ORDER BY m.created_at ASC
         LIMIT 100
       `);
+      history.forEach(m => { m.content = decryptText(m.content); });
       socket.emit('messages:history', history);
     });
 
@@ -208,9 +236,10 @@ const io = new Server(server, {
 
     socket.on('message:send', async ({ chatId, content, receiverId }) => {
       if (!currentUser || !content.trim()) return;
+      const enc = encryptText(content.trim());
       const { rows } = await db.query(
         'INSERT INTO messages (sender_id, receiver_id, chat_id, content) VALUES ($1, $2, $3, $4) RETURNING id',
-        [currentUser.id, receiverId || null, chatId || null, content.trim()]
+        [currentUser.id, receiverId || null, chatId || null, enc]
       );
       const { rows: message } = await db.query(`
         SELECT m.*, u.nickname as sender_name, u.avatar_color as sender_color
@@ -218,6 +247,7 @@ const io = new Server(server, {
         JOIN users u ON m.sender_id = u.id
         WHERE m.id = $1
       `, [rows[0].id]);
+      message[0].content = decryptText(message[0].content);
       io.emit('message:new', message[0]);
     });
 
