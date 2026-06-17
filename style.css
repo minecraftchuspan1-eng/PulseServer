@@ -163,13 +163,36 @@ body {
   border-color: #6366f1;
 }
 
-.online-users-section {
-  padding: 8px 16px;
-  flex: 1;
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #1c1c24;
+  border: 1px solid #2a2a35;
+  border-radius: 8px;
+  margin-top: 4px;
+  z-index: 50;
+  max-height: 200px;
   overflow-y: auto;
 }
 
-.online-users-section h3 {
+.search-results .user-item {
+  padding: 8px 12px;
+}
+
+.sidebar-search {
+  position: relative;
+}
+
+.online-users-section,
+.recent-section {
+  padding: 8px 16px;
+  overflow-y: auto;
+}
+
+.online-users-section h3,
+.recent-section h3 {
   font-size: 11px;
   text-transform: uppercase;
   color: #52525b;
@@ -177,7 +200,8 @@ body {
   margin-bottom: 8px;
 }
 
-#online-users {
+#online-users,
+#recent-users {
   display: flex;
   flex-direction: column;
   gap: 2px;

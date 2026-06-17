@@ -13,6 +13,8 @@ const authScreen = $('auth-screen');
 const appScreen = $('app-screen');
 const authError = document.querySelector('.auth-error');
 const onlineUsersDiv = $('online-users');
+const recentUsersDiv = $('recent-users');
+const searchResultsDiv = $('search-results');
 const messagesContainer = $('messages-container');
 const messageInput = $('message-input');
 const sendBtn = $('send-btn');
@@ -68,7 +70,8 @@ function setUser(user) {
   appScreen.classList.remove('hidden');
   updateUserUI();
   connectSocket();
-  loadUsers();
+  loadAllUsers();
+  loadRecentUsers();
 }
 
 function updateUserUI() {
@@ -82,8 +85,13 @@ function updateUserUI() {
 }
 
 function connectSocket() {
+  if (socket) socket.disconnect();
   socket = io(API);
   socket.emit('user:online', currentUser);
+
+  socket.on('connect', () => {
+    socket.emit('user:online', currentUser);
+  });
 
   socket.on('users:online', (users) => {
     renderOnlineUsers(users);
@@ -92,25 +100,53 @@ function connectSocket() {
   socket.on('messages:history', (messages) => {
     allMessages = messages;
     if (activeChatId) renderMessages();
+    loadRecentUsers();
   });
 
   socket.on('message:new', (message) => {
     allMessages.push(message);
     if (activeChatId && (message.chat_id === activeChatId)) {
       renderMessages();
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      scrollToBottom();
     }
+    loadRecentUsers();
   });
 
   socket.on('chats:list', () => {});
 }
 
-async function loadUsers() {
+async function loadAllUsers() {
   try {
     const res = await fetch(API + '/api/users');
     const data = await res.json();
     allUsers = data.users.filter(u => u.id !== currentUser.id);
   } catch {}
+}
+
+async function loadRecentUsers() {
+  try {
+    const res = await fetch(API + '/api/users/recent?userId=' + currentUser.id);
+    const data = await res.json();
+    renderRecentUsers(data.users);
+  } catch {}
+}
+
+function renderRecentUsers(users) {
+  recentUsersDiv.innerHTML = '';
+  if (users.length === 0) {
+    recentUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:4px 10px;">No conversations yet</div>';
+    return;
+  }
+  users.forEach(u => {
+    const el = document.createElement('div');
+    el.className = 'user-item';
+    el.innerHTML = `
+      <div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div>
+      <span class="user-name">${u.nickname}</span>
+    `;
+    el.addEventListener('click', () => startChat(u));
+    recentUsersDiv.appendChild(el);
+  });
 }
 
 function renderOnlineUsers(onlineList) {
@@ -133,17 +169,49 @@ function renderOnlineUsers(onlineList) {
   });
 }
 
-searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    const query = searchInput.value.trim().replace('@', '');
-    if (!query) return;
-    const user = allUsers.find(u => u.username === query || u.nickname.toLowerCase() === query.toLowerCase());
-    if (user) {
-      startChat(user);
-      searchInput.value = '';
+let searchTimeout;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  const query = searchInput.value.trim().replace('@', '');
+  if (!query) {
+    searchResultsDiv.classList.add('hidden');
+    return;
+  }
+  searchTimeout = setTimeout(() => {
+    const matches = allUsers.filter(u =>
+      u.username.toLowerCase().includes(query.toLowerCase()) ||
+      u.nickname.toLowerCase().includes(query.toLowerCase())
+    );
+    if (matches.length === 0) {
+      searchResultsDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:8px 12px;">Not found</div>';
     } else {
-      onlineUsersDiv.innerHTML = '<div style="color:#ef4444;font-size:13px;padding:4px 10px;">User not found</div>';
+      searchResultsDiv.innerHTML = '';
+      matches.slice(0, 10).forEach(u => {
+        const el = document.createElement('div');
+        el.className = 'user-item';
+        el.innerHTML = `
+          <div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div>
+          <span class="user-name">${u.nickname}</span>
+        `;
+        el.addEventListener('click', () => {
+          searchResultsDiv.classList.add('hidden');
+          searchInput.value = '';
+          startChat(u);
+        });
+        searchResultsDiv.appendChild(el);
+      });
     }
+    searchResultsDiv.classList.remove('hidden');
+  }, 200);
+});
+
+searchInput.addEventListener('blur', () => {
+  setTimeout(() => searchResultsDiv.classList.add('hidden'), 200);
+});
+
+searchInput.addEventListener('focus', () => {
+  if (searchInput.value.trim()) {
+    searchInput.dispatchEvent(new Event('input'));
   }
 });
 
@@ -178,6 +246,7 @@ usernameBtn.addEventListener('click', async () => {
     const data = await res.json();
     if (res.ok) {
       currentUser.username = data.username;
+      localStorage.setItem('pulse_user', JSON.stringify(currentUser));
       updateUserUI();
       usernameInput.value = '';
       usernameError.textContent = 'Username updated!';
@@ -204,21 +273,13 @@ function startChat(user) {
   chatAvatar.textContent = user.nickname[0].toUpperCase();
   chatStatus.textContent = 'offline';
   chatStatus.classList.remove('online');
+  messageInput.focus();
 
-  if (socket) {
+  if (socket && socket.connected) {
     socket.emit('private:start', { userId: user.id }, ({ chatId }) => {
       activeChatId = chatId;
       renderMessages();
       scrollToBottom();
-    });
-  }
-
-  if (socket) {
-    socket.on('users:online', (users) => {
-      const isOnline = users.some(u => u.id === user.id);
-      chatStatus.textContent = isOnline ? 'online' : 'offline';
-      if (isOnline) chatStatus.classList.add('online');
-      else chatStatus.classList.remove('online');
     });
   }
 }
@@ -255,7 +316,13 @@ messageInput.addEventListener('keydown', (e) => {
 
 function sendMessage() {
   const content = messageInput.value.trim();
-  if (!content || !activeChatId || !socket) return;
+  if (!content || !activeChatId || !socket || !socket.connected) {
+    if (!socket || !socket.connected) {
+      authError.textContent = 'Not connected to server';
+      setTimeout(() => { authError.textContent = ''; }, 2000);
+    }
+    return;
+  }
   socket.emit('message:send', {
     chatId: activeChatId,
     content,

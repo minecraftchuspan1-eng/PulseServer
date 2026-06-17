@@ -98,6 +98,18 @@ const io = new Server(server, {
     res.json({ users: rows });
   });
 
+  app.get('/api/users/recent', async (req, res) => {
+    const userId = req.query.userId;
+    if (!userId) return res.json({ users: [] });
+    const { rows } = await db.query(`
+      SELECT DISTINCT u.id, u.username, u.nickname, u.avatar_color
+      FROM messages m
+      JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
+      WHERE (m.sender_id = $1 OR m.receiver_id = $1) AND u.id != $1
+    `, [userId]);
+    res.json({ users: rows });
+  });
+
   app.put('/api/users/username', async (req, res) => {
     const { userId, username } = req.body;
     if (!userId || !username) return res.status(400).json({ error: 'Required' });
