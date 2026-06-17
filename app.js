@@ -62,25 +62,27 @@ let confirmCallback = null;
 function showConfirm(text, callback) {
   confirmText.textContent = text;
   confirmCallback = callback;
-  confirmModal.classList.remove('hidden');
+  confirmModal.style.display = 'flex';
 }
 
-confirmOk.addEventListener('click', () => {
-  confirmModal.classList.add('hidden');
-  if (confirmCallback) confirmCallback();
+function hideConfirm() {
+  confirmModal.style.display = 'none';
   confirmCallback = null;
+}
+
+confirmOk.addEventListener('click', (e) => {
+  e.stopPropagation();
+  hideConfirm();
+  if (confirmCallback) confirmCallback();
 });
 
-confirmCancel.addEventListener('click', () => {
-  confirmModal.classList.add('hidden');
-  confirmCallback = null;
+confirmCancel.addEventListener('click', (e) => {
+  e.stopPropagation();
+  hideConfirm();
 });
 
 confirmModal.addEventListener('click', (e) => {
-  if (e.target === confirmModal) {
-    confirmModal.classList.add('hidden');
-    confirmCallback = null;
-  }
+  if (e.target === confirmModal) hideConfirm();
 });
 
 googleBtn.addEventListener('click', () => {
