@@ -173,12 +173,6 @@ function connectSocket() {
   socket.on('messages:history', (messages) => {
     allMessages = messages;
     if (activeChatId) renderMessages();
-    else if (!activeChatId) {
-      try {
-        var savedChat = JSON.parse(localStorage.getItem('pulse_chat'));
-        if (savedChat && savedChat.id) startChat(savedChat);
-      } catch {}
-    }
     loadRecentUsers();
   });
 
@@ -246,7 +240,6 @@ function closeChat() {
   chatActive.style.display = 'none';
   chatPlaceholder.style.display = 'flex';
   showSidebar();
-  localStorage.removeItem('pulse_chat');
 }
 
 function showSidebar() {
@@ -443,8 +436,6 @@ function startChat(user) {
   updateOnlineStatus();
   messageInput.focus();
   showChat();
-
-  localStorage.setItem('pulse_chat', JSON.stringify(user));
 
   if (socket && socket.connected) {
     socket.emit('private:start', { userId: user.id }, ({ chatId }) => {
