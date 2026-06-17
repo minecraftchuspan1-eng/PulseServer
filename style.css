@@ -842,6 +842,8 @@ body {
     inset: 0;
     z-index: 10;
     background: #0f0f13;
+    flex-direction: column;
+    height: 100dvh;
   }
 
   .chat-area.mobile-chat-open {
@@ -851,7 +853,8 @@ body {
   #chat-active {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
   }
 
   .chat-header {
