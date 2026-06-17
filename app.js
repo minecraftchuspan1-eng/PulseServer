@@ -78,8 +78,9 @@ function hideConfirm() {
 }
 
 function confirmOk() {
+  const cb = confirmCallback;
   hideConfirm();
-  if (confirmCallback) confirmCallback();
+  if (cb) cb();
 }
 
 confirmModal.addEventListener('click', (e) => {
