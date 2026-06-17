@@ -70,16 +70,10 @@ function hideConfirm() {
   confirmCallback = null;
 }
 
-confirmOk.addEventListener('click', (e) => {
-  e.stopPropagation();
+function confirmOk() {
   hideConfirm();
   if (confirmCallback) confirmCallback();
-});
-
-confirmCancel.addEventListener('click', (e) => {
-  e.stopPropagation();
-  hideConfirm();
-});
+}
 
 confirmModal.addEventListener('click', (e) => {
   if (e.target === confirmModal) hideConfirm();
