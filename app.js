@@ -86,7 +86,7 @@ function showConfirm(text, callback) {
 function hideConfirm() {
   confirmModal.style.display = 'none';
   confirmCallback = null;
-  confirmOk.style.display = '';
+  confirmOkBtn.style.display = '';
   confirmCancel.textContent = 'Cancel';
 }
 
