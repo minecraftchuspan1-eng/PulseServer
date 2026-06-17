@@ -6,7 +6,6 @@ let allMessages = [];
 let allUsers = [];
 
 const API = 'https://messenger-server-vwkj-production.up.railway.app';
-
 const $ = id => document.getElementById(id);
 
 const authScreen = $('auth-screen');
@@ -23,6 +22,7 @@ const chatActive = $('chat-active');
 const chatArea = $('chat-area');
 const sidebar = $('sidebar');
 const chatBack = $('chat-back');
+const chatDeleteBtn = $('chat-delete-btn');
 const chatPartnerName = $('chat-partner-name');
 const chatAvatar = $('chat-avatar');
 const chatStatus = $('chat-status');
@@ -51,10 +51,7 @@ const auth = firebase.auth();
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 let isMobile = window.innerWidth <= 768;
-
-window.addEventListener('resize', () => {
-  isMobile = window.innerWidth <= 768;
-});
+window.addEventListener('resize', () => { isMobile = window.innerWidth <= 768; });
 
 googleBtn.addEventListener('click', () => {
   auth.signInWithPopup(googleProvider).then(async (result) => {
@@ -103,6 +100,11 @@ function connectSocket() {
 
   socket.on('users:online', (users) => {
     renderOnlineUsers(users);
+    if (activeUserId) {
+      const online = users.some(u => u.id === activeUserId);
+      chatStatus.textContent = online ? 'online' : 'offline';
+      chatStatus.classList.toggle('online', online);
+    }
   });
 
   socket.on('messages:history', (messages) => {
@@ -114,9 +116,26 @@ function connectSocket() {
   socket.on('message:new', (message) => {
     allMessages.push(message);
     if (allMessages.length > 200) allMessages = allMessages.slice(-200);
-    if (activeChatId && (message.chat_id === activeChatId)) {
+    if (activeChatId && message.chat_id === activeChatId) {
       renderMessages();
       scrollToBottom();
+    }
+    loadRecentUsers();
+  });
+
+  socket.on('message:deleted', ({ messageId }) => {
+    allMessages = allMessages.filter(m => m.id !== messageId);
+    if (activeChatId) renderMessages();
+  });
+
+  socket.on('chat:deleted', ({ chatId }) => {
+    if (activeChatId === chatId) {
+      allMessages = allMessages.filter(m => m.chat_id !== chatId);
+      activeChatId = null;
+      activeUserId = null;
+      chatActive.style.display = 'none';
+      chatPlaceholder.style.display = 'flex';
+      if (isMobile) { sidebar.style.display = 'flex'; chatArea.style.display = 'none'; }
     }
     loadRecentUsers();
   });
@@ -142,17 +161,14 @@ async function loadRecentUsers() {
 
 function renderRecentUsers(users) {
   recentUsersDiv.innerHTML = '';
-  if (users.length === 0) {
-    recentUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:4px 10px;">No conversations yet</div>';
+  if (!users.length) {
+    recentUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:8px 10px;">No conversations</div>';
     return;
   }
   users.forEach(u => {
     const el = document.createElement('div');
     el.className = 'user-item';
-    el.innerHTML = `
-      <div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div>
-      <span class="user-name">${u.nickname}</span>
-    `;
+    el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span>`;
     el.addEventListener('click', () => startChat(u));
     recentUsersDiv.appendChild(el);
   });
@@ -161,18 +177,14 @@ function renderRecentUsers(users) {
 function renderOnlineUsers(onlineList) {
   onlineUsersDiv.innerHTML = '';
   const others = onlineList.filter(u => u.id !== currentUser.id);
-  if (others.length === 0) {
-    onlineUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:4px 10px;">No one online</div>';
+  if (!others.length) {
+    onlineUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:8px 10px;">No one online</div>';
     return;
   }
   others.forEach(u => {
     const el = document.createElement('div');
     el.className = 'user-item';
-    el.innerHTML = `
-      <div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div>
-      <span class="user-name">${u.nickname}</span>
-      <div class="online-dot"></div>
-    `;
+    el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span><div class="online-dot"></div>`;
     el.addEventListener('click', () => startChat(u));
     onlineUsersDiv.appendChild(el);
   });
@@ -181,32 +193,19 @@ function renderOnlineUsers(onlineList) {
 let searchTimeout;
 searchInput.addEventListener('input', () => {
   clearTimeout(searchTimeout);
-  const query = searchInput.value.trim().replace('@', '');
-  if (!query) {
-    searchResultsDiv.classList.add('hidden');
-    return;
-  }
+  const q = searchInput.value.trim().replace('@', '');
+  if (!q) { searchResultsDiv.classList.add('hidden'); return; }
   searchTimeout = setTimeout(() => {
-    const matches = allUsers.filter(u =>
-      u.username.toLowerCase().includes(query.toLowerCase()) ||
-      u.nickname.toLowerCase().includes(query.toLowerCase())
-    );
-    if (matches.length === 0) {
-      searchResultsDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:8px 12px;">Not found</div>';
+    const matches = allUsers.filter(u => u.username.toLowerCase().includes(q.toLowerCase()) || u.nickname.toLowerCase().includes(q.toLowerCase()));
+    if (!matches.length) {
+      searchResultsDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:10px 12px;">Not found</div>';
     } else {
       searchResultsDiv.innerHTML = '';
       matches.slice(0, 10).forEach(u => {
         const el = document.createElement('div');
         el.className = 'user-item';
-        el.innerHTML = `
-          <div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div>
-          <span class="user-name">${u.nickname}</span>
-        `;
-        el.addEventListener('click', () => {
-          searchResultsDiv.classList.add('hidden');
-          searchInput.value = '';
-          startChat(u);
-        });
+        el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span>`;
+        el.addEventListener('click', () => { searchResultsDiv.classList.add('hidden'); searchInput.value = ''; startChat(u); });
         searchResultsDiv.appendChild(el);
       });
     }
@@ -214,15 +213,8 @@ searchInput.addEventListener('input', () => {
   }, 200);
 });
 
-searchInput.addEventListener('blur', () => {
-  setTimeout(() => searchResultsDiv.classList.add('hidden'), 200);
-});
-
-searchInput.addEventListener('focus', () => {
-  if (searchInput.value.trim()) {
-    searchInput.dispatchEvent(new Event('input'));
-  }
-});
+searchInput.addEventListener('blur', () => setTimeout(() => searchResultsDiv.classList.add('hidden'), 200));
+searchInput.addEventListener('focus', () => { if (searchInput.value.trim()) searchInput.dispatchEvent(new Event('input')); });
 
 chatBack.addEventListener('click', () => {
   if (isMobile) {
@@ -243,21 +235,17 @@ settingsClose.addEventListener('click', () => {
 });
 
 settingsPanel.addEventListener('click', (e) => {
-  if (e.target === settingsPanel) {
-    settingsPanel.classList.add('hidden');
-    usernameError.textContent = '';
-  }
+  if (e.target === settingsPanel) { settingsPanel.classList.add('hidden'); usernameError.textContent = ''; }
 });
 
 usernameBtn.addEventListener('click', async () => {
-  const newUsername = usernameInput.value.trim().replace('@', '');
-  if (!newUsername) return;
+  const n = usernameInput.value.trim().replace('@', '');
+  if (!n) return;
   usernameError.textContent = '';
   try {
     const res = await fetch(API + '/api/users/username', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUser.id, username: newUsername })
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, username: n })
     });
     const data = await res.json();
     if (res.ok) {
@@ -265,20 +253,14 @@ usernameBtn.addEventListener('click', async () => {
       localStorage.setItem('pulse_user', JSON.stringify(currentUser));
       updateUserUI();
       usernameInput.value = '';
-      usernameError.textContent = 'Username updated!';
+      usernameError.textContent = 'Saved!';
       usernameError.style.color = '#22c55e';
       setTimeout(() => { usernameError.textContent = ''; usernameError.style.color = '#ef4444'; }, 2000);
-    } else {
-      usernameError.textContent = data.error;
-    }
-  } catch {
-    usernameError.textContent = 'Connection error';
-  }
+    } else usernameError.textContent = data.error;
+  } catch { usernameError.textContent = 'Connection error'; }
 });
 
-usernameInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') usernameBtn.click();
-});
+usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') usernameBtn.click(); });
 
 function startChat(user) {
   activeUserId = user.id;
@@ -290,10 +272,7 @@ function startChat(user) {
   updateOnlineStatus(user.id);
   messageInput.focus();
 
-  if (isMobile) {
-    sidebar.style.display = 'none';
-    chatArea.style.display = 'flex';
-  }
+  if (isMobile) { sidebar.style.display = 'none'; chatArea.style.display = 'flex'; }
 
   if (socket && socket.connected) {
     socket.emit('private:start', { userId: user.id }, ({ chatId }) => {
@@ -302,28 +281,33 @@ function startChat(user) {
       scrollToBottom();
     });
   }
+
+  chatDeleteBtn.onclick = () => {
+    if (!activeChatId) return;
+    if (!confirm('Delete this chat for both users?')) return;
+    fetch(API + '/api/chats/' + activeChatId, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    }).catch(() => {});
+  };
 }
 
 function updateOnlineStatus(userId) {
   if (socket) {
-    socket.off('users:online');
-    socket.on('users:online', (users) => {
-      const isOnline = users.some(u => u.id === userId);
-      chatStatus.textContent = isOnline ? 'online' : 'offline';
-      chatStatus.classList.toggle('online', isOnline);
-    });
+    const online = Array.from(document.querySelectorAll('.online-dot')).length > 0;
+    chatStatus.textContent = 'offline';
+    chatStatus.classList.remove('online');
   }
 }
 
 function renderMessages() {
-  const chatMessages = allMessages.filter(m => m.chat_id === activeChatId);
+  const msgs = allMessages.filter(m => m.chat_id === activeChatId);
   messagesContainer.innerHTML = '';
-  if (chatMessages.length === 0) {
-    messagesContainer.innerHTML = '<div class="system-message">No messages yet. Say hello!</div>';
+  if (!msgs.length) {
+    messagesContainer.innerHTML = '<div class="system-message">No messages yet</div>';
     return;
   }
-  const show = chatMessages.slice(-50);
-  show.forEach(m => {
+  msgs.slice(-50).forEach(m => {
     const isOwn = m.sender_id === currentUser.id;
     const div = document.createElement('div');
     div.className = `message ${isOwn ? 'own' : 'other'}`;
@@ -332,30 +316,34 @@ function renderMessages() {
       ${!isOwn ? `<div class="msg-sender">${m.sender_name}</div>` : ''}
       ${m.content}
       <div class="msg-time">${time}</div>
+      ${isOwn ? `<button class="msg-delete" data-id="${m.id}">✕</button>` : ''}
     `;
+    const delBtn = div.querySelector('.msg-delete');
+    if (delBtn) {
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this message?')) return;
+        fetch(API + '/api/messages/' + m.id, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id })
+        }).catch(() => {});
+      });
+    }
     messagesContainer.appendChild(div);
   });
 }
 
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  });
+  requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
 }
 
 sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendMessage();
-});
+messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
 function sendMessage() {
   const content = messageInput.value.trim();
   if (!content || !activeChatId || !socket || !socket.connected) return;
-  socket.emit('message:send', {
-    chatId: activeChatId,
-    content,
-    receiverId: activeUserId
-  });
+  socket.emit('message:send', { chatId: activeChatId, content, receiverId: activeUserId });
   messageInput.value = '';
 }
 
@@ -363,20 +351,17 @@ settingsLogout.addEventListener('click', () => {
   localStorage.removeItem('pulse_user');
   auth.signOut();
   if (socket) socket.disconnect();
-  currentUser = null;
-  activeChatId = null;
-  activeUserId = null;
-  allMessages = [];
+  currentUser = null; activeChatId = null; activeUserId = null; allMessages = [];
   settingsPanel.classList.add('hidden');
   appScreen.classList.add('hidden');
   authScreen.classList.remove('hidden');
   authError.textContent = '';
 });
 
-const savedUser = localStorage.getItem('pulse_user');
-if (savedUser) {
-  const user = JSON.parse(savedUser);
-  if (user.id && user.nickname && user.avatar_color) {
-    setUser(user);
-  }
+const saved = localStorage.getItem('pulse_user');
+if (saved) {
+  try {
+    const u = JSON.parse(saved);
+    if (u.id && u.nickname && u.avatar_color) setUser(u);
+  } catch {}
 }

@@ -124,6 +124,39 @@ const io = new Server(server, {
     }
   });
 
+  app.delete('/api/chats/:chatId', async (req, res) => {
+    const { chatId } = req.params;
+    const { userId } = req.body;
+    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (!member.length) return res.status(403).json({ error: 'Not a member' });
+      await db.query('DELETE FROM messages WHERE chat_id = $1', [chatId]);
+      await db.query('DELETE FROM chat_members WHERE chat_id = $1', [chatId]);
+      await db.query('DELETE FROM chats WHERE id = $1', [chatId]);
+      io.emit('chat:deleted', { chatId });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.delete('/api/messages/:messageId', async (req, res) => {
+    const { messageId } = req.params;
+    const { userId } = req.body;
+    if (!messageId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: msg } = await db.query('SELECT sender_id FROM messages WHERE id = $1', [messageId]);
+      if (!msg.length) return res.status(404).json({ error: 'Not found' });
+      if (msg[0].sender_id !== userId) return res.status(403).json({ error: 'Not your message' });
+      await db.query('DELETE FROM messages WHERE id = $1', [messageId]);
+      io.emit('message:deleted', { messageId });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
   io.on('connection', (socket) => {
     let currentUser = null;
 
