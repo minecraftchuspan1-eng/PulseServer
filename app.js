@@ -63,6 +63,7 @@ googleBtn.addEventListener('click', () => {
 
 function setUser(user) {
   currentUser = user;
+  localStorage.setItem('pulse_user', JSON.stringify(user));
   authScreen.classList.add('hidden');
   appScreen.classList.remove('hidden');
   updateUserUI();
@@ -264,6 +265,7 @@ function sendMessage() {
 }
 
 settingsLogout.addEventListener('click', () => {
+  localStorage.removeItem('pulse_user');
   auth.signOut();
   if (socket) socket.disconnect();
   currentUser = null;
@@ -275,3 +277,8 @@ settingsLogout.addEventListener('click', () => {
   authScreen.classList.remove('hidden');
   authError.textContent = '';
 });
+
+const savedUser = localStorage.getItem('pulse_user');
+if (savedUser) {
+  setUser(JSON.parse(savedUser));
+}
