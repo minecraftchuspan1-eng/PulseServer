@@ -5,15 +5,17 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const { initDB, getDB } = require('./db');
 
-let firebaseAdmin;
-try {
-  firebaseAdmin = require('firebase-admin');
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    firebaseAdmin.initializeApp({ credential: firebaseAdmin.credential.cert(sa) });
-  }
-} catch (e) {
-  console.log('Firebase Admin not configured');
+const FIREBASE_API_KEY = 'AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0';
+
+async function verifyFirebaseToken(idToken) {
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Invalid token');
+  return data.users[0];
 }
 
 async function main() {
@@ -77,11 +79,10 @@ async function main() {
   app.post('/api/auth/google', async (req, res) => {
     const { idToken } = req.body;
     if (!idToken) return res.status(400).json({ error: 'No token' });
-    if (!firebaseAdmin) return res.status(500).json({ error: 'Firebase not configured' });
     try {
-      const decoded = await firebaseAdmin.auth().verifyIdToken(idToken);
-      const { uid, name, email } = decoded;
-      const nickname = name || email || uid.slice(0, 8);
+      const fbUser = await verifyFirebaseToken(idToken);
+      const { localId: uid, displayName, email } = fbUser;
+      const nickname = displayName || email || uid.slice(0, 8);
       const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color FROM users WHERE firebase_uid = $1', [uid]);
       if (existing.length) return res.json({ user: existing[0] });
       const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
