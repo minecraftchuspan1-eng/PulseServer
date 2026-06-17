@@ -249,7 +249,8 @@ function renderRecentUsers(users) {
 
 function renderOnlineUsers(onlineList) {
   onlineUsersDiv.innerHTML = '';
-  const others = onlineList.filter(u => u.id !== currentUser.id);
+  const seen = new Set();
+  const others = onlineList.filter(u => u.id !== currentUser.id && !seen.has(u.id) && seen.add(u.id));
   if (!others.length) {
     onlineUsersDiv.innerHTML = '<div style="color:#52525b;font-size:13px;padding:8px 10px;">No one online</div>';
     return;

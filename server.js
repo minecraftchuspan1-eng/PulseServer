@@ -162,6 +162,9 @@ const io = new Server(server, {
 
     socket.on('user:online', async (user) => {
       currentUser = user;
+      for (const [sid, u] of onlineUsers) {
+        if (u.id === user.id) onlineUsers.delete(sid);
+      }
       onlineUsers.set(socket.id, user);
       io.emit('users:online', getOnlineUsersList());
 
