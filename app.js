@@ -54,7 +54,6 @@ const profileNickname = $('profile-nickname');
 const profileUsername = $('profile-username');
 const profileStatus = $('profile-status');
 const typingIndicator = $('typing-indicator');
-const profileBtn = $('profile-btn');
 const chatUserMeta = $('chat-user-meta');
 
 let auth, googleProvider;
@@ -355,12 +354,14 @@ function openProfile() {
   profileUsername.textContent = '@' + user.username;
   profileStatus.textContent = onlineUsersList.some(function(u) { return u.id === user.id; }) ? 'online' : 'offline';
   profilePanel.style.display = 'flex';
+  profilePanel.style.setProperty('display', 'flex', 'important');
 }
 
 profileClose.onclick = function() { profilePanel.style.display = 'none'; };
 profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
 
-profileBtn.addEventListener('click', openProfile);
+chatUserMeta.addEventListener('click', openProfile);
+chatAvatar.addEventListener('click', openProfile);
 
 let typingTimer = null;
 function emitTypingStart() {

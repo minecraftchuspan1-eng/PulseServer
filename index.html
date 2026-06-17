@@ -56,13 +56,11 @@
             <button id="chat-back" class="chat-back-btn" title="Back">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <button id="profile-btn" class="profile-btn">
-              <div class="chat-avatar" id="chat-avatar"></div>
-              <div class="chat-user-meta" id="chat-user-meta" style="cursor:pointer">
-                <div id="chat-partner-name"></div>
-                <div class="chat-status" id="chat-status">offline</div>
-              </div>
-            </button>
+            <div class="chat-avatar" id="chat-avatar" onclick="openProfile()"></div>
+            <div class="chat-user-meta" id="chat-user-meta" style="cursor:pointer" onclick="openProfile()">
+              <div id="chat-partner-name"></div>
+              <div class="chat-status" id="chat-status">offline</div>
+            </div>
             <button id="chat-delete-btn" class="chat-delete-btn" title="Delete chat">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
