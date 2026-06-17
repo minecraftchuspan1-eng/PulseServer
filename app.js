@@ -45,14 +45,21 @@ const confirmText = $('confirm-text');
 const confirmOk = $('confirm-ok');
 const confirmCancel = $('confirm-cancel');
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
-  authDomain: "so2market.firebaseapp.com",
-  projectId: "so2market",
-};
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const googleProvider = new firebase.auth.GoogleAuthProvider();
+let auth, googleProvider;
+
+try {
+  if (typeof firebase === 'undefined') throw new Error('Firebase SDK not loaded');
+  const firebaseConfig = {
+    apiKey: "AIzaSyDi8v1i0hHUXFwkrxS2T4ZywFpKMyFIMA0",
+    authDomain: "so2market.firebaseapp.com",
+    projectId: "so2market",
+  };
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  googleProvider = new firebase.auth.GoogleAuthProvider();
+} catch (e) {
+  console.error('Firebase init error:', e);
+}
 
 let isMobile = window.innerWidth <= 768;
 window.addEventListener('resize', () => { isMobile = window.innerWidth <= 768; });
@@ -80,6 +87,7 @@ confirmModal.addEventListener('click', (e) => {
 });
 
 googleBtn.addEventListener('click', () => {
+  if (!auth) { authError.textContent = 'Firebase not loaded. Check internet.'; return; }
   auth.signInWithPopup(googleProvider).then(async (result) => {
     const user = result.user;
     const res = await fetch(API + '/api/auth/google', {
