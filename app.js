@@ -100,6 +100,7 @@ googleBtn.addEventListener('click', () => {
     else authError.textContent = data.error;
   }).catch((err) => {
     authError.textContent = err.message || 'Sign in failed';
+    console.error('Google sign-in error:', err);
   });
 });
 
