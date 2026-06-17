@@ -1,14 +1,115 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const bcrypt = require('bcryptjs');
 const { initDB } = require('./db');
 
+const BOT_USERNAME = 'pulsechatbot';
+const BOT_NICKNAME = 'Pulse Chat Bot';
+const BOT_UID = 'bot_pulsechatbot';
+const BOT_COLOR = '#6366f1';
 
+const GIGACHAT_AUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
+const GIGACHAT_API_URL = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
+const GIGACHAT_AUTH_KEY = 'MDE5ZTc4MDMtYWRlZi03YTc1LTg0NDgtOTMyYzcxODFmNjJiOjMzMmFmMWNjLWZiZjctNGNlMi1iMjQ1LTJiZWUwZDYyYTI0Mg==';
+const GIGACHAT_SCOPE = 'GIGACHAT_API_PERS';
+
+let gigaChatToken = null;
+let gigaChatTokenExpires = 0;
+let botUser = null;
+
+
+
+async function ensureBotUser(db) {
+  const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color FROM users WHERE firebase_uid = $1', [BOT_UID]);
+  if (existing.length) { botUser = existing[0]; return; }
+  const { rows } = await db.query(
+    'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color',
+    [BOT_USERNAME, BOT_NICKNAME, BOT_COLOR, BOT_UID]
+  );
+  botUser = rows[0];
+}
+
+function httpsPost(url, body, headers) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const opts = {
+      hostname: u.hostname, port: u.port || 443,
+      path: u.pathname + u.search, method: 'POST',
+      headers, rejectUnauthorized: false,
+    };
+    const req = https.request(opts, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode, data: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, data }); }
+      });
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+async function getGigaChatToken() {
+  if (gigaChatToken && Date.now() < gigaChatTokenExpires) return gigaChatToken;
+  const body = 'scope=' + encodeURIComponent(GIGACHAT_SCOPE);
+  const { status, data } = await httpsPost(GIGACHAT_AUTH_URL, body, {
+    'Authorization': 'Basic ' + GIGACHAT_AUTH_KEY,
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Accept': 'application/json',
+    'RqUID': crypto.randomUUID(),
+  });
+  if (status !== 200) throw new Error('GigaChat auth failed: ' + JSON.stringify(data));
+  gigaChatToken = data.access_token;
+  gigaChatTokenExpires = Date.now() + (data.expires_at ? (new Date(data.expires_at).getTime() - Date.now()) : 1500000);
+  return gigaChatToken;
+}
+
+async function callGigaChat(userMessage) {
+  const token = await getGigaChatToken();
+  const body = JSON.stringify({
+    model: 'GigaChat',
+    messages: [
+      { role: 'system', content: 'Ты — Pulse Chat Bot, дружелюбный помощник в мессенджере Pulse. Отвечай кратко и полезно. Никогда не упоминай, что ты создан какой-либо компанией, и не говори о своей модели. Просто помогай пользователям.' },
+      { role: 'user', content: userMessage }
+    ],
+    temperature: 0.7,
+    max_tokens: 1000,
+  });
+  const { status, data } = await httpsPost(GIGACHAT_API_URL, body, {
+    'Authorization': 'Bearer ' + token,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  });
+  if (status !== 200) throw new Error('GigaChat API error: ' + JSON.stringify(data));
+  return data.choices[0].message.content;
+}
+
+async function handleBotResponse(chatId, userMessage, sender, db) {
+  try {
+    const reply = await callGigaChat(userMessage);
+    const { rows } = await db.query(
+      'INSERT INTO messages (sender_id, receiver_id, chat_id, content) VALUES ($1, $2, $3, $4) RETURNING id',
+      [botUser.id, sender.id, chatId, encryptText(reply)]
+    );
+    const { rows: msg } = await db.query(`
+      SELECT m.*, u.nickname as sender_name, u.avatar_color as sender_color
+      FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.id = $1
+    `, [rows[0].id]);
+    msg[0].content = decryptText(msg[0].content);
+    io.emit('message:new', msg[0]);
+  } catch (err) {
+    console.error('Bot response error:', err);
+  }
+}
 
 async function main() {
   const db = await initDB();
+  await ensureBotUser(db);
 
 const app = express();
 const server = http.createServer(app);
@@ -28,9 +129,11 @@ const io = new Server(server, {
   const onlineUsers = new Map();
 
   function getOnlineUsersList() {
-    return Array.from(onlineUsers.values()).map(u => ({
+    const list = Array.from(onlineUsers.values()).map(u => ({
       id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color
     }));
+    if (botUser) list.unshift(botUser);
+    return list;
   }
 
   function getEncryptionKey() {
@@ -249,6 +352,10 @@ const io = new Server(server, {
       `, [rows[0].id]);
       message[0].content = decryptText(message[0].content);
       io.emit('message:new', message[0]);
+
+      if (botUser && receiverId && Number(receiverId) === Number(botUser.id)) {
+        handleBotResponse(chatId, content.trim(), currentUser, db);
+      }
     });
 
     socket.on('disconnect', () => {
