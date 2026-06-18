@@ -8,7 +8,10 @@ let allUsers = [];
 let onlineUsersList = [];
 let unreadCounts = {};
 
-const API = 'https:function createAvatarHtml(u) {
+const API = 'https://messenger-server-vwkj-production.up.railway.app';
+const $ = id => document.getElementById(id);
+
+function createAvatarHtml(u) {
   var div = document.createElement('div');
   div.className = 'avatar';
   if (u.avatar_url) {
@@ -20,8 +23,7 @@ const API = 'https:function createAvatarHtml(u) {
     div.textContent = u.nickname[0].toUpperCase();
   }
   return div;
-}messenger-server-vwkj-production.up.railway.app';
-const $ = id => document.getElementById(id);
+}
 
 const authScreen = $('auth-screen');
 const appScreen = $('app-screen');
