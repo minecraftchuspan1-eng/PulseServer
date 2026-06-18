@@ -11,6 +11,8 @@ const BOT_NICKNAME = 'Pulse Chat Bot';
 const BOT_UID = 'bot_pulsechatbot';
 const BOT_COLOR = '#6366f1';
 
+const ADMIN_EMAILS = ['minecraftchuspan1@gmail.com', 'artemiiest@gmail.com'];
+
 const GIGACHAT_AUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
 const GIGACHAT_API_URL = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
 const GIGACHAT_AUTH_KEY = 'MDE5ZTc4MDMtYWRlZi03YTc1LTg0NDgtOTMyYzcxODFmNjJiOjMzMmFmMWNjLWZiZjctNGNlMi1iMjQ1LTJiZWUwZDYyYTI0Mg==';
@@ -23,10 +25,10 @@ let botUser = null;
 
 
 async function ensureBotUser(db) {
-  const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version FROM users WHERE firebase_uid = $1', [BOT_UID]);
+  const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label FROM users WHERE firebase_uid = $1', [BOT_UID]);
   if (existing.length) { botUser = existing[0]; return; }
   const { rows } = await db.query(
-    'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color, avatar_url, avatar_version',
+    'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color, avatar_url, avatar_version, label',
     [BOT_USERNAME, BOT_NICKNAME, BOT_COLOR, BOT_UID]
   );
   botUser = rows[0];
@@ -172,14 +174,23 @@ const io = new Server(server, {
 
   function getOnlineUsersList() {
     const list = Array.from(onlineUsers.values()).map(u => ({
-      id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id + '?v=' + (u.avatar_version || 0) : (u.avatar_url || '')
+      id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id + '?v=' + (u.avatar_version || 0) : (u.avatar_url || ''), label: u.label || ''
     }));
     if (botUser) list.unshift(formatUser(botUser));
     return list;
   }
 
   function formatUser(u) {
-    return { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id + '?v=' + (u.avatar_version || 0) : (u.avatar_url || '') };
+    return { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id + '?v=' + (u.avatar_version || 0) : (u.avatar_url || ''), label: u.label || '', email: u.email || '' };
+  }
+
+  function isAdmin(userId) {
+    return new Promise(async (resolve) => {
+      try {
+        const { rows } = await db.query('SELECT email FROM users WHERE id = $1', [userId]);
+        resolve(rows.length && ADMIN_EMAILS.includes(rows[0].email));
+      } catch { resolve(false); }
+    });
   }
 
   app.post('/api/register', async (req, res) => {
@@ -227,14 +238,14 @@ const io = new Server(server, {
     if (!uid) return res.status(400).json({ error: 'No uid' });
     try {
       const nickname = displayName || email || uid.slice(0, 8);
-      const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version FROM users WHERE firebase_uid = $1', [uid]);
+      const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label, email FROM users WHERE firebase_uid = $1', [uid]);
       if (existing.length) return res.json({ user: formatUser(existing[0]) });
       const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
       const color = colors[Math.floor(Math.random() * colors.length)];
       const username = `google_${uid.slice(0, 8)}`;
       const { rows } = await db.query(
-        'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color, avatar_url, avatar_version',
-        [username, nickname, color, uid]
+        'INSERT INTO users (username, nickname, avatar_color, firebase_uid, email) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, nickname, avatar_color, avatar_url, avatar_version, label, email',
+        [username, nickname, color, uid, email || '']
       );
       res.json({ user: formatUser(rows[0]) });
     } catch (err) {
@@ -244,7 +255,7 @@ const io = new Server(server, {
   });
 
   app.get('/api/users', async (req, res) => {
-    const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version FROM users');
+    const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label FROM users');
     res.json({ users: rows.map(formatUser) });
   });
 
@@ -252,7 +263,7 @@ const io = new Server(server, {
     const userId = req.query.userId;
     if (!userId) return res.json({ users: [] });
     const { rows } = await db.query(`
-      SELECT DISTINCT u.id, u.username, u.nickname, u.avatar_color, u.avatar_url, u.avatar_version
+      SELECT DISTINCT u.id, u.username, u.nickname, u.avatar_color, u.avatar_url, u.avatar_version, u.label
       FROM messages m
       JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
       WHERE (m.sender_id = $1 OR m.receiver_id = $1) AND u.id != $1
@@ -302,6 +313,23 @@ const io = new Server(server, {
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
     }
+  });
+
+  app.get('/api/admin/users', async (req, res) => {
+    const userId = req.query.adminId;
+    if (!userId || !(await isAdmin(userId))) return res.status(403).json({ error: 'Forbidden' });
+    const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label, email FROM users ORDER BY id');
+    res.json({ users: rows.map(formatUser) });
+  });
+
+  app.put('/api/admin/users/:targetId/label', async (req, res) => {
+    const adminId = req.query.adminId;
+    if (!adminId || !(await isAdmin(adminId))) return res.status(403).json({ error: 'Forbidden' });
+    const { label } = req.body;
+    if (!['verified', 'scam', ''].includes(label)) return res.status(400).json({ error: 'Invalid label' });
+    await db.query('UPDATE users SET label = $1 WHERE id = $2', [label, req.params.targetId]);
+    io.emit('label:changed', { userId: Number(req.params.targetId), label });
+    res.json({ label });
   });
 
   function avatarApiUrl(userId, version) {
@@ -372,8 +400,9 @@ const io = new Server(server, {
       for (const [sid, u] of onlineUsers) {
         if (u.id === user.id) onlineUsers.delete(sid);
       }
-      const { rows: userRow } = await db.query('SELECT avatar_version FROM users WHERE id = $1', [user.id]);
+      const { rows: userRow } = await db.query('SELECT avatar_version, label FROM users WHERE id = $1', [user.id]);
       const ver = userRow.length ? (userRow[0].avatar_version || 0) : 0;
+      user.label = userRow.length ? (userRow[0].label || '') : '';
       user.avatar_url = (user.avatar_url && user.avatar_url.startsWith('data:')) ? '/api/avatar/' + user.id + '?v=' + ver : (user.avatar_url || '');
       onlineUsers.set(socket.id, user);
       io.emit('users:online', getOnlineUsersList());

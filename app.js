@@ -27,6 +27,22 @@ function createAvatarHtml(u) {
   return div;
 }
 
+function createLabelHtml(label) {
+  if (label === 'verified') {
+    var badge = document.createElement('span');
+    badge.className = 'verified-badge';
+    badge.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+    return badge;
+  }
+  if (label === 'scam') {
+    var scam = document.createElement('span');
+    scam.className = 'scam-label';
+    scam.textContent = 'SCAM';
+    return scam;
+  }
+  return null;
+}
+
 const authScreen = $('auth-screen');
 const appScreen = $('app-screen');
 const authError = document.querySelector('.auth-error');
@@ -80,6 +96,10 @@ const avatarInput = $('avatar-input');
 const avatarRemoveBtn = $('avatar-remove-btn');
 const avatarError = $('avatar-error');
 const themeOptions = document.querySelectorAll('.theme-option');
+const adminBtn = $('admin-btn');
+const adminPanel = $('admin-panel');
+const adminClose = $('admin-close');
+const adminBody = $('admin-body');
 
 let auth, googleProvider;
 
@@ -166,6 +186,7 @@ function setUser(user) {
   authScreen.classList.add('hidden');
   appScreen.classList.remove('hidden');
   updateUserUI();
+  updateAdminBtn();
   connectSocket();
   loadAllUsers();
   loadRecentUsers();
@@ -294,6 +315,20 @@ function connectSocket() {
     loadAllUsers();
     loadRecentUsers();
   });
+
+  socket.on('label:changed', ({ userId, label }) => {
+    allUsers.forEach(function(u) { if (u.id === userId) u.label = label; });
+    onlineUsersList.forEach(function(ou) { if (ou.id === userId) ou.label = label; });
+    renderOnlineUsers(onlineUsersList);
+    if (activeUserObj && activeUserObj.id === userId) {
+      activeUserObj.label = label;
+      var existingLabel = chatPartnerName.parentNode.querySelector('.verified-badge, .scam-label');
+      if (existingLabel) existingLabel.remove();
+      var labelEl = createLabelHtml(label);
+      if (labelEl) chatPartnerName.parentNode.insertBefore(labelEl, chatPartnerName.nextSibling);
+    }
+    loadRecentUsers();
+  });
 }
 
 function updateOnlineStatus() {
@@ -355,13 +390,16 @@ function renderRecentUsers(users) {
     const el = document.createElement('div');
     el.className = 'user-item';
     const count = unreadCounts[u.id] || 0;
-    const badge = count > 0 ? '<div class="unread-badge">' + (count > 99 ? '99+' : count) + '</div>' : '';
+    var badgeHtml = '';
+    if (count > 0) badgeHtml = '<div class="unread-badge">' + (count > 99 ? '99+' : count) + '</div>';
     el.appendChild(createAvatarHtml(u));
     var nameSpan = document.createElement('span');
     nameSpan.className = 'user-name';
     nameSpan.textContent = u.nickname;
     el.appendChild(nameSpan);
-    if (badge) el.insertAdjacentHTML('beforeend', badge);
+    var labelEl = createLabelHtml(u.label);
+    if (labelEl) el.appendChild(labelEl);
+    if (badgeHtml) el.insertAdjacentHTML('beforeend', badgeHtml);
     el.addEventListener('click', () => startChat(u));
     recentUsersDiv.appendChild(el);
   });
@@ -393,6 +431,8 @@ function renderOnlineUsers(onlineList) {
     nameSpan.className = 'user-name';
     nameSpan.textContent = u.nickname;
     el.appendChild(nameSpan);
+    var labelEl = createLabelHtml(u.label);
+    if (labelEl) el.appendChild(labelEl);
     var dot = document.createElement('div');
     dot.className = 'online-dot';
     el.appendChild(dot);
@@ -420,6 +460,8 @@ searchInput.addEventListener('input', () => {
         nameSpan.className = 'user-name';
         nameSpan.textContent = u.nickname;
         el.appendChild(nameSpan);
+        var labelEl = createLabelHtml(u.label);
+        if (labelEl) el.appendChild(labelEl);
         el.addEventListener('click', () => { searchResultsDiv.classList.add('hidden'); searchInput.value = ''; startChat(u); });
         searchResultsDiv.appendChild(el);
       });
@@ -453,6 +495,10 @@ function openProfile() {
   }
   profileNickname.textContent = user.nickname;
   profileUsername.textContent = '@' + user.username;
+  var profileLabelDiv = $('profile-label');
+  profileLabelDiv.innerHTML = '';
+  var labelEl = createLabelHtml(user.label);
+  if (labelEl) profileLabelDiv.appendChild(labelEl);
   profileStatus.textContent = onlineUsersList.some(function(u) { return u.id === user.id; }) ? 'online' : 'offline';
   profilePanel.style.display = 'flex';
   profilePanel.style.setProperty('display', 'flex', 'important');
@@ -630,12 +676,76 @@ if (savedTheme) {
   });
 }
 
+var ADMIN_EMAILS = ['minecraftchuspan1@gmail.com', 'artemiiest@gmail.com'];
+
+function updateAdminBtn() {
+  if (currentUser && currentUser.email && ADMIN_EMAILS.indexOf(currentUser.email) !== -1) {
+    adminBtn.classList.remove('hidden');
+  } else {
+    adminBtn.classList.add('hidden');
+  }
+}
+
+adminBtn.addEventListener('click', function() {
+  settingsPanel.classList.add('hidden');
+  openAdminPanel();
+});
+
+adminClose.addEventListener('click', function() { adminPanel.style.display = 'none'; });
+adminPanel.addEventListener('click', function(e) { if (e.target === adminPanel) adminPanel.style.display = 'none'; });
+
+function openAdminPanel() {
+  adminBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Loading...</div>';
+  adminPanel.style.display = 'flex';
+  fetch(API + '/api/admin/users?adminId=' + currentUser.id)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      adminBody.innerHTML = '';
+      data.users.forEach(function(u) {
+        var row = document.createElement('div');
+        row.className = 'admin-user-item';
+        var info = document.createElement('div');
+        info.className = 'admin-user-info';
+        var nameRow = document.createElement('div');
+        nameRow.className = 'admin-user-name';
+        nameRow.textContent = u.nickname;
+        info.appendChild(nameRow);
+        var emailRow = document.createElement('div');
+        emailRow.className = 'admin-user-email';
+        emailRow.textContent = '@' + u.username + (u.email ? ' — ' + u.email : '');
+        info.appendChild(emailRow);
+        row.appendChild(info);
+        ['verified', 'scam'].forEach(function(lbl) {
+          var btn = document.createElement('button');
+          btn.className = 'admin-label-btn' + (u.label === lbl ? ' active-' + lbl : '');
+          btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
+          btn.addEventListener('click', function() {
+            var newLabel = u.label === lbl ? '' : lbl;
+            fetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ label: newLabel })
+            }).then(function(r) { return r.json(); }).then(function() {
+              u.label = newLabel;
+              openAdminPanel();
+            }).catch(function() {});
+          });
+          row.appendChild(btn);
+        });
+        adminBody.appendChild(row);
+      });
+    }).catch(function() { adminBody.innerHTML = '<div style="color:#ef4444;text-align:center;padding:20px;">Failed to load</div>'; });
+}
+
 function startChat(user) {
   activeUserId = user.id;
   activeUserObj = user;
   chatPlaceholder.style.display = 'none';
   chatActive.style.display = 'flex';
   chatPartnerName.textContent = user.nickname;
+  var existingLabel = chatPartnerName.parentNode.querySelector('.verified-badge, .scam-label');
+  if (existingLabel) existingLabel.remove();
+  var labelEl = createLabelHtml(user.label);
+  if (labelEl) chatPartnerName.parentNode.insertBefore(labelEl, chatPartnerName.nextSibling);
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
   var avUrl = user.avatar_url;
