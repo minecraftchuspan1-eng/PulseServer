@@ -8,7 +8,19 @@ let allUsers = [];
 let onlineUsersList = [];
 let unreadCounts = {};
 
-const API = 'https://messenger-server-vwkj-production.up.railway.app';
+const API = 'https:function createAvatarHtml(u) {
+  var div = document.createElement('div');
+  div.className = 'avatar';
+  if (u.avatar_url) {
+    div.style.backgroundImage = 'url(' + u.avatar_url + ')';
+    div.style.backgroundSize = 'cover';
+    div.style.backgroundPosition = 'center';
+  } else {
+    div.style.background = u.avatar_color;
+    div.textContent = u.nickname[0].toUpperCase();
+  }
+  return div;
+}messenger-server-vwkj-production.up.railway.app';
 const $ = id => document.getElementById(id);
 
 const authScreen = $('auth-screen');
@@ -335,14 +347,13 @@ function renderRecentUsers(users) {
     const el = document.createElement('div');
     el.className = 'user-item';
     const count = unreadCounts[u.id] || 0;
-    const badge = count > 0 ? `<div class="unread-badge">${count > 99 ? '99+' : count}</div>` : '';
-    var avatarHtml;
-    if (u.avatar_url) {
-      avatarHtml = '<div class="avatar" style="background-image:url(' + u.avatar_url + ');background-size:cover;background-position:center"></div>';
-    } else {
-      avatarHtml = '<div class="avatar" style="background:' + u.avatar_color + '">' + u.nickname[0].toUpperCase() + '</div>';
-    }
-    el.innerHTML = avatarHtml + '<span class="user-name">' + u.nickname + '</span>' + badge;
+    const badge = count > 0 ? '<div class="unread-badge">' + (count > 99 ? '99+' : count) + '</div>' : '';
+    el.appendChild(createAvatarHtml(u));
+    var nameSpan = document.createElement('span');
+    nameSpan.className = 'user-name';
+    nameSpan.textContent = u.nickname;
+    el.appendChild(nameSpan);
+    if (badge) el.insertAdjacentHTML('beforeend', badge);
     el.addEventListener('click', () => startChat(u));
     recentUsersDiv.appendChild(el);
   });
@@ -369,13 +380,14 @@ function renderOnlineUsers(onlineList) {
   others.forEach(u => {
     const el = document.createElement('div');
     el.className = 'user-item';
-    var avatarHtml;
-    if (u.avatar_url) {
-      avatarHtml = '<div class="avatar" style="background-image:url(' + u.avatar_url + ');background-size:cover;background-position:center"></div>';
-    } else {
-      avatarHtml = '<div class="avatar" style="background:' + u.avatar_color + '">' + u.nickname[0].toUpperCase() + '</div>';
-    }
-    el.innerHTML = avatarHtml + '<span class="user-name">' + u.nickname + '</span><div class="online-dot"></div>';
+    el.appendChild(createAvatarHtml(u));
+    var nameSpan = document.createElement('span');
+    nameSpan.className = 'user-name';
+    nameSpan.textContent = u.nickname;
+    el.appendChild(nameSpan);
+    var dot = document.createElement('div');
+    dot.className = 'online-dot';
+    el.appendChild(dot);
     el.addEventListener('click', () => startChat(u));
     onlineUsersDiv.appendChild(el);
   });
@@ -395,13 +407,11 @@ searchInput.addEventListener('input', () => {
       matches.slice(0, 10).forEach(u => {
         const el = document.createElement('div');
         el.className = 'user-item';
-        var avatarHtml;
-        if (u.avatar_url) {
-          avatarHtml = '<div class="avatar" style="background-image:url(' + u.avatar_url + ');background-size:cover;background-position:center"></div>';
-        } else {
-          avatarHtml = '<div class="avatar" style="background:' + u.avatar_color + '">' + u.nickname[0].toUpperCase() + '</div>';
-        }
-        el.innerHTML = avatarHtml + '<span class="user-name">' + u.nickname + '</span>';
+        el.appendChild(createAvatarHtml(u));
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'user-name';
+        nameSpan.textContent = u.nickname;
+        el.appendChild(nameSpan);
         el.addEventListener('click', () => { searchResultsDiv.classList.add('hidden'); searchInput.value = ''; startChat(u); });
         searchResultsDiv.appendChild(el);
       });
