@@ -196,9 +196,17 @@ function updateUserUI() {
   myAvatar.style.background = currentUser.avatar_color;
   myAvatar.textContent = currentUser.nickname[0].toUpperCase();
   myNickname.textContent = currentUser.nickname;
+  var myLabelEl = myNickname.querySelector('.verified-badge, .scam-label');
+  if (myLabelEl) myLabelEl.remove();
+  var labelEl = createLabelHtml(currentUser.label);
+  if (labelEl) myNickname.appendChild(labelEl);
   settingsAvatar.style.background = currentUser.avatar_color;
   settingsAvatar.textContent = currentUser.nickname[0].toUpperCase();
   settingsNickname.textContent = currentUser.nickname;
+  var nv = settingsNickname.querySelector('.verified-badge, .scam-label');
+  if (nv) nv.remove();
+  var le2 = createLabelHtml(currentUser.label);
+  if (le2) settingsNickname.appendChild(le2);
   settingsUsername.textContent = '@' + currentUser.username;
   var avUrl = currentUser.avatar_url;
   if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
@@ -322,10 +330,10 @@ function connectSocket() {
     renderOnlineUsers(onlineUsersList);
     if (activeUserObj && activeUserObj.id === userId) {
       activeUserObj.label = label;
-      var existingLabel = chatPartnerName.parentNode.querySelector('.verified-badge, .scam-label');
+      var existingLabel = chatPartnerName.querySelector('.verified-badge, .scam-label');
       if (existingLabel) existingLabel.remove();
       var labelEl = createLabelHtml(label);
-      if (labelEl) chatPartnerName.parentNode.insertBefore(labelEl, chatPartnerName.nextSibling);
+      if (labelEl) chatPartnerName.appendChild(labelEl);
     }
     loadRecentUsers();
   });
@@ -396,9 +404,9 @@ function renderRecentUsers(users) {
     var nameSpan = document.createElement('span');
     nameSpan.className = 'user-name';
     nameSpan.textContent = u.nickname;
-    el.appendChild(nameSpan);
     var labelEl = createLabelHtml(u.label);
-    if (labelEl) el.appendChild(labelEl);
+    if (labelEl) nameSpan.appendChild(labelEl);
+    el.appendChild(nameSpan);
     if (badgeHtml) el.insertAdjacentHTML('beforeend', badgeHtml);
     el.addEventListener('click', () => startChat(u));
     recentUsersDiv.appendChild(el);
@@ -430,9 +438,9 @@ function renderOnlineUsers(onlineList) {
     var nameSpan = document.createElement('span');
     nameSpan.className = 'user-name';
     nameSpan.textContent = u.nickname;
-    el.appendChild(nameSpan);
     var labelEl = createLabelHtml(u.label);
-    if (labelEl) el.appendChild(labelEl);
+    if (labelEl) nameSpan.appendChild(labelEl);
+    el.appendChild(nameSpan);
     var dot = document.createElement('div');
     dot.className = 'online-dot';
     el.appendChild(dot);
@@ -459,9 +467,9 @@ searchInput.addEventListener('input', () => {
         var nameSpan = document.createElement('span');
         nameSpan.className = 'user-name';
         nameSpan.textContent = u.nickname;
-        el.appendChild(nameSpan);
         var labelEl = createLabelHtml(u.label);
-        if (labelEl) el.appendChild(labelEl);
+        if (labelEl) nameSpan.appendChild(labelEl);
+        el.appendChild(nameSpan);
         el.addEventListener('click', () => { searchResultsDiv.classList.add('hidden'); searchInput.value = ''; startChat(u); });
         searchResultsDiv.appendChild(el);
       });
@@ -495,10 +503,10 @@ function openProfile() {
   }
   profileNickname.textContent = user.nickname;
   profileUsername.textContent = '@' + user.username;
-  var profileLabelDiv = $('profile-label');
-  profileLabelDiv.innerHTML = '';
+  var existingLabel = profileNickname.querySelector('.verified-badge, .scam-label');
+  if (existingLabel) existingLabel.remove();
   var labelEl = createLabelHtml(user.label);
-  if (labelEl) profileLabelDiv.appendChild(labelEl);
+  if (labelEl) profileNickname.appendChild(labelEl);
   profileStatus.textContent = onlineUsersList.some(function(u) { return u.id === user.id; }) ? 'online' : 'offline';
   profilePanel.style.display = 'flex';
   profilePanel.style.setProperty('display', 'flex', 'important');
@@ -707,39 +715,55 @@ function openAdminPanel() {
   fetch(API + '/api/admin/users?adminId=' + currentUser.id)
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      var allAdminUsers = data.users;
       adminBody.innerHTML = '';
-      data.users.forEach(function(u) {
-        var row = document.createElement('div');
-        row.className = 'admin-user-item';
-        var info = document.createElement('div');
-        info.className = 'admin-user-info';
-        var nameRow = document.createElement('div');
-        nameRow.className = 'admin-user-name';
-        nameRow.textContent = u.nickname;
-        info.appendChild(nameRow);
-        var emailRow = document.createElement('div');
-        emailRow.className = 'admin-user-email';
-        emailRow.textContent = '@' + u.username + (u.email ? ' — ' + u.email : '');
-        info.appendChild(emailRow);
-        row.appendChild(info);
-        ['verified', 'scam'].forEach(function(lbl) {
-          var btn = document.createElement('button');
-          btn.className = 'admin-label-btn' + (u.label === lbl ? ' active-' + lbl : '');
-          btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
-          btn.addEventListener('click', function() {
-            var newLabel = u.label === lbl ? '' : lbl;
-            fetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
-              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ label: newLabel })
-            }).then(function(r) { return r.json(); }).then(function() {
-              u.label = newLabel;
-              openAdminPanel();
-            }).catch(function() {});
+      var adminSearchInput = $('admin-search-input');
+      adminSearchInput.value = '';
+      function renderAdminUsers(filter) {
+        adminBody.innerHTML = '';
+        var q = filter.toLowerCase();
+        var matches = allAdminUsers.filter(function(u) { return u.username.toLowerCase().indexOf(q) !== -1 || u.nickname.toLowerCase().indexOf(q) !== -1; });
+        if (!matches.length) {
+          adminBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Not found</div>';
+          return;
+        }
+        matches.forEach(function(u) {
+          var row = document.createElement('div');
+          row.className = 'admin-user-item';
+          var info = document.createElement('div');
+          info.className = 'admin-user-info';
+          var nameRow = document.createElement('div');
+          nameRow.className = 'admin-user-name';
+          nameRow.textContent = u.nickname;
+          var labelEl = createLabelHtml(u.label);
+          if (labelEl) nameRow.appendChild(labelEl);
+          info.appendChild(nameRow);
+          var emailRow = document.createElement('div');
+          emailRow.className = 'admin-user-email';
+          emailRow.textContent = '@' + u.username + (u.email ? ' — ' + u.email : '');
+          info.appendChild(emailRow);
+          row.appendChild(info);
+          ['verified', 'scam'].forEach(function(lbl) {
+            var btn = document.createElement('button');
+            btn.className = 'admin-label-btn' + (u.label === lbl ? ' active-' + lbl : '');
+            btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
+            btn.addEventListener('click', function() {
+              var newLabel = u.label === lbl ? '' : lbl;
+              fetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label: newLabel })
+              }).then(function(r) { return r.json(); }).then(function() {
+                u.label = newLabel;
+                renderAdminUsers(adminSearchInput.value);
+              }).catch(function() {});
+            });
+            row.appendChild(btn);
           });
-          row.appendChild(btn);
+          adminBody.appendChild(row);
         });
-        adminBody.appendChild(row);
-      });
+      }
+      renderAdminUsers('');
+      adminSearchInput.oninput = function() { renderAdminUsers(adminSearchInput.value); };
     }).catch(function() { adminBody.innerHTML = '<div style="color:#ef4444;text-align:center;padding:20px;">Failed to load</div>'; });
 }
 
@@ -749,10 +773,10 @@ function startChat(user) {
   chatPlaceholder.style.display = 'none';
   chatActive.style.display = 'flex';
   chatPartnerName.textContent = user.nickname;
-  var existingLabel = chatPartnerName.parentNode.querySelector('.verified-badge, .scam-label');
+  var existingLabel = chatPartnerName.querySelector('.verified-badge, .scam-label');
   if (existingLabel) existingLabel.remove();
   var labelEl = createLabelHtml(user.label);
-  if (labelEl) chatPartnerName.parentNode.insertBefore(labelEl, chatPartnerName.nextSibling);
+  if (labelEl) chatPartnerName.appendChild(labelEl);
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
   var avUrl = user.avatar_url;
