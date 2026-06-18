@@ -314,9 +314,10 @@ const io = new Server(server, {
         FROM messages m
         JOIN users u ON m.sender_id = u.id
         WHERE m.sender_id = $1 OR m.receiver_id = $1
-        ORDER BY m.created_at ASC
+        ORDER BY m.created_at DESC
         LIMIT 100
       `, [currentUser.id]);
+      history.reverse();
       history.forEach(m => { m.content = decryptText(m.content); });
       socket.emit('messages:history', history);
     });
