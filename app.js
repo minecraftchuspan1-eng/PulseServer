@@ -335,6 +335,10 @@ function connectSocket() {
       var labelEl = createLabelHtml(label);
       if (labelEl) chatPartnerName.appendChild(labelEl);
     }
+    if (currentUser && currentUser.id === userId) {
+      currentUser.label = label;
+      updateUserUI();
+    }
     loadRecentUsers();
   });
 }
