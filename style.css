@@ -197,7 +197,7 @@ body {
 }
 
 .sidebar-search input {
-  width: 100%;
+  width: 150px;
   padding: 11px 14px;
   border: 1px solid var(--border-color);
   background: var(--bg-tertiary);
@@ -1316,7 +1316,7 @@ body {
 }
 
 .admin-search input {
-  width: 180px;
+  width: 150px;
   padding: 8px 10px;
   border: 1px solid var(--border-color);
   background: var(--bg-primary);
