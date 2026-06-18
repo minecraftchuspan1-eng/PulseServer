@@ -1153,8 +1153,7 @@ body {
   }
 
 .sidebar-search input {
-  width: 100%;
-  max-width: 200px;
+  width: 180px;
   padding: 11px 14px;
   border: 1px solid var(--border-color);
   background: var(--bg-tertiary);
@@ -1162,6 +1161,7 @@ body {
   color: var(--text-primary);
   font-size: 14px;
   outline: none;
+  box-sizing: border-box;
 }
 
   .online-users-section,
@@ -1316,11 +1316,11 @@ body {
 }
 
 .admin-search input {
-  width: 100%;
+  width: 180px;
   padding: 8px 10px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
   background: var(--bg-primary);
+  border-radius: 8px;
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
@@ -1387,3 +1387,5 @@ body {
   border-color: #ef4444;
   color: #ef4444;
 }
+*   {   b o x - s i z i n g :   b o r d e r - b o x ;   }  
+ 
