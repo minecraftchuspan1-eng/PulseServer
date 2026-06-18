@@ -14,8 +14,10 @@ const $ = id => document.getElementById(id);
 function createAvatarHtml(u) {
   var div = document.createElement('div');
   div.className = 'avatar';
-  if (u.avatar_url) {
-    div.style.backgroundImage = 'url(' + u.avatar_url + ')';
+  var url = u.avatar_url;
+  if (url) {
+    if (url.startsWith('/')) url = API + url;
+    div.style.backgroundImage = 'url(' + url + ')';
     div.style.backgroundSize = 'cover';
     div.style.backgroundPosition = 'center';
   } else {
@@ -177,11 +179,13 @@ function updateUserUI() {
   settingsAvatar.textContent = currentUser.nickname[0].toUpperCase();
   settingsNickname.textContent = currentUser.nickname;
   settingsUsername.textContent = '@' + currentUser.username;
-  if (currentUser.avatar_url) {
-    myAvatar.style.backgroundImage = 'url(' + currentUser.avatar_url + ')';
+  var avUrl = currentUser.avatar_url;
+  if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+  if (avUrl) {
+    myAvatar.style.backgroundImage = 'url(' + avUrl + ')';
     myAvatar.style.backgroundSize = 'cover';
     myAvatar.textContent = '';
-    settingsAvatar.style.backgroundImage = 'url(' + currentUser.avatar_url + ')';
+    settingsAvatar.style.backgroundImage = 'url(' + avUrl + ')';
     settingsAvatar.style.backgroundSize = 'cover';
     settingsAvatar.textContent = '';
   } else {
@@ -275,8 +279,10 @@ function connectSocket() {
     renderOnlineUsers(onlineUsersList);
     if (activeUserObj && activeUserObj.id === userId) {
       activeUserObj.avatar_url = avatarUrl;
-      if (avatarUrl) {
-        chatAvatar.style.backgroundImage = 'url(' + avatarUrl + ')';
+      var avUrl = avatarUrl;
+      if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+      if (avUrl) {
+        chatAvatar.style.backgroundImage = 'url(' + avUrl + ')';
         chatAvatar.style.backgroundSize = 'cover';
         chatAvatar.textContent = '';
       } else {
@@ -434,8 +440,10 @@ function openProfile() {
   if (!user) return;
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
-  if (user.avatar_url) {
-    profileAvatar.style.backgroundImage = 'url(' + user.avatar_url + ')';
+  var avUrl = user.avatar_url;
+  if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+  if (avUrl) {
+    profileAvatar.style.backgroundImage = 'url(' + avUrl + ')';
     profileAvatar.style.backgroundSize = 'cover';
     profileAvatar.textContent = '';
   } else {
@@ -574,12 +582,14 @@ function uploadAvatar(dataUrl) {
     body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
   }).then(function(res) {
     if (res.ok) {
-      currentUser.avatar_url = dataUrl;
-      localStorage.setItem('pulse_user', JSON.stringify(currentUser));
-      updateUserUI();
-      avatarError.textContent = 'Saved!';
-      avatarError.style.color = '#22c55e';
-      setTimeout(function() { avatarError.textContent = ''; avatarError.style.color = '#ef4444'; }, 2000);
+      return res.json().then(function(data) {
+        currentUser.avatar_url = data.avatarUrl;
+        localStorage.setItem('pulse_user', JSON.stringify(currentUser));
+        updateUserUI();
+        avatarError.textContent = 'Saved!';
+        avatarError.style.color = '#22c55e';
+        setTimeout(function() { avatarError.textContent = ''; avatarError.style.color = '#ef4444'; }, 2000);
+      });
     } else avatarError.textContent = 'Save failed';
   }).catch(function() { avatarError.textContent = 'Connection error'; });
 }
@@ -591,7 +601,8 @@ avatarRemoveBtn.addEventListener('click', async () => {
       body: JSON.stringify({ userId: currentUser.id, avatarUrl: '' })
     });
     if (res.ok) {
-      currentUser.avatar_url = '';
+      const data = await res.json();
+      currentUser.avatar_url = data.avatarUrl;
       localStorage.setItem('pulse_user', JSON.stringify(currentUser));
       updateUserUI();
       avatarError.textContent = 'Avatar removed';
@@ -627,8 +638,10 @@ function startChat(user) {
   chatPartnerName.textContent = user.nickname;
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
-  if (user.avatar_url) {
-    chatAvatar.style.backgroundImage = 'url(' + user.avatar_url + ')';
+  var avUrl = user.avatar_url;
+  if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+  if (avUrl) {
+    chatAvatar.style.backgroundImage = 'url(' + avUrl + ')';
     chatAvatar.style.backgroundSize = 'cover';
     chatAvatar.textContent = '';
   } else {

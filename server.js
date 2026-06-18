@@ -156,10 +156,14 @@ const io = new Server(server, {
 
   function getOnlineUsersList() {
     const list = Array.from(onlineUsers.values()).map(u => ({
-      id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: u.avatar_url || ''
+      id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id : (u.avatar_url || '')
     }));
-    if (botUser) list.unshift(botUser);
+    if (botUser) list.unshift(formatUser(botUser));
     return list;
+  }
+
+  function formatUser(u) {
+    return { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id : (u.avatar_url || '') };
   }
 
   app.post('/api/register', async (req, res) => {
@@ -196,7 +200,7 @@ const io = new Server(server, {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
       const u = rows[0];
-      res.json({ user: { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: u.avatar_url || '' } });
+      res.json({ user: formatUser(u) });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
     }
@@ -208,7 +212,7 @@ const io = new Server(server, {
     try {
       const nickname = displayName || email || uid.slice(0, 8);
       const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url FROM users WHERE firebase_uid = $1', [uid]);
-      if (existing.length) return res.json({ user: existing[0] });
+      if (existing.length) return res.json({ user: formatUser(existing[0]) });
       const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
       const color = colors[Math.floor(Math.random() * colors.length)];
       const username = `google_${uid.slice(0, 8)}`;
@@ -216,7 +220,7 @@ const io = new Server(server, {
         'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color, avatar_url',
         [username, nickname, color, uid]
       );
-      res.json({ user: rows[0] });
+      res.json({ user: formatUser(rows[0]) });
     } catch (err) {
       console.error('Google auth error:', err.message, err.stack);
       res.status(500).json({ error: 'Server error' });
@@ -225,7 +229,7 @@ const io = new Server(server, {
 
   app.get('/api/users', async (req, res) => {
     const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url FROM users');
-    res.json({ users: rows });
+    res.json({ users: rows.map(formatUser) });
   });
 
   app.get('/api/users/recent', async (req, res) => {
@@ -237,7 +241,7 @@ const io = new Server(server, {
       JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
       WHERE (m.sender_id = $1 OR m.receiver_id = $1) AND u.id != $1
     `, [userId]);
-    res.json({ users: rows });
+    res.json({ users: rows.map(formatUser) });
   });
 
   app.put('/api/users/username', async (req, res) => {
@@ -268,20 +272,42 @@ const io = new Server(server, {
     }
   });
 
+  app.get('/api/avatar/:userId', async (req, res) => {
+    try {
+      const { rows } = await db.query('SELECT avatar_url FROM users WHERE id = $1', [req.params.userId]);
+      if (!rows.length || !rows[0].avatar_url) return res.status(404).json({ error: 'Not found' });
+      const dataUrl = rows[0].avatar_url;
+      const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) return res.status(400).json({ error: 'Invalid avatar' });
+      const buf = Buffer.from(matches[2], 'base64');
+      res.setHeader('Content-Type', matches[1]);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(buf);
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  function avatarApiUrl(userId) {
+    return '/api/avatar/' + userId;
+  }
+
   app.put('/api/users/avatar', async (req, res) => {
     const { userId, avatarUrl } = req.body;
     if (!userId) return res.status(400).json({ error: 'Required' });
     try {
+      const hasAvatar = avatarUrl && avatarUrl.startsWith('data:');
+      const clientUrl = hasAvatar ? avatarApiUrl(userId) : '';
       await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl || '', userId]);
       for (const [sid, u] of onlineUsers) {
         if (u.id === Number(userId)) {
-          u.avatar_url = avatarUrl || '';
+          u.avatar_url = clientUrl;
           onlineUsers.set(sid, u);
         }
       }
-      io.emit('avatar:changed', { userId, avatarUrl: avatarUrl || '' });
+      io.emit('avatar:changed', { userId, avatarUrl: clientUrl });
       io.emit('users:online', getOnlineUsersList());
-      res.json({ avatarUrl: avatarUrl || '' });
+      res.json({ avatarUrl: clientUrl });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
     }
@@ -328,6 +354,7 @@ const io = new Server(server, {
       for (const [sid, u] of onlineUsers) {
         if (u.id === user.id) onlineUsers.delete(sid);
       }
+      user.avatar_url = (user.avatar_url && user.avatar_url.startsWith('data:')) ? '/api/avatar/' + user.id : (user.avatar_url || '');
       onlineUsers.set(socket.id, user);
       io.emit('users:online', getOnlineUsersList());
 
