@@ -273,7 +273,14 @@ const io = new Server(server, {
     if (!userId) return res.status(400).json({ error: 'Required' });
     try {
       await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl || '', userId]);
+      for (const [sid, u] of onlineUsers) {
+        if (u.id === Number(userId)) {
+          u.avatar_url = avatarUrl || '';
+          onlineUsers.set(sid, u);
+        }
+      }
       io.emit('avatar:changed', { userId, avatarUrl: avatarUrl || '' });
+      io.emit('users:online', getOnlineUsersList());
       res.json({ avatarUrl: avatarUrl || '' });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });

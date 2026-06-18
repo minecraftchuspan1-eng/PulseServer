@@ -258,6 +258,8 @@ function connectSocket() {
   socket.on('avatar:changed', ({ userId, avatarUrl }) => {
     const u = allUsers.find(x => x.id === userId);
     if (u) u.avatar_url = avatarUrl;
+    onlineUsersList.forEach(function(ou) { if (ou.id === userId) ou.avatar_url = avatarUrl; });
+    renderOnlineUsers(onlineUsersList);
     if (activeUserObj && activeUserObj.id === userId) {
       activeUserObj.avatar_url = avatarUrl;
       if (avatarUrl) {
