@@ -547,25 +547,42 @@ avatarInput.addEventListener('change', function() {
   if (file.size > 500 * 1024) { avatarError.textContent = 'Max 500KB'; return; }
   avatarError.textContent = '';
   const reader = new FileReader();
-  reader.onload = async function(e) {
-    const dataUrl = e.target.result;
-    try {
-      const res = await fetch(API + '/api/users/avatar', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
-      });
-      if (res.ok) {
-        currentUser.avatar_url = dataUrl;
-        localStorage.setItem('pulse_user', JSON.stringify(currentUser));
-        updateUserUI();
-        avatarError.textContent = 'Saved!';
-        avatarError.style.color = '#22c55e';
-        setTimeout(() => { avatarError.textContent = ''; avatarError.style.color = '#ef4444'; }, 2000);
-      } else avatarError.textContent = 'Save failed';
-    } catch { avatarError.textContent = 'Connection error'; }
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var max = 200;
+      var w = img.width, h = img.height;
+      if (w > max || h > max) {
+        var r = Math.min(max / w, max / h);
+        w = Math.round(w * r); h = Math.round(h * r);
+      }
+      var c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      var ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      var dataUrl = c.toDataURL('image/jpeg', 0.8);
+      uploadAvatar(dataUrl);
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 });
+
+function uploadAvatar(dataUrl) {
+  fetch(API + '/api/users/avatar', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
+  }).then(function(res) {
+    if (res.ok) {
+      currentUser.avatar_url = dataUrl;
+      localStorage.setItem('pulse_user', JSON.stringify(currentUser));
+      updateUserUI();
+      avatarError.textContent = 'Saved!';
+      avatarError.style.color = '#22c55e';
+      setTimeout(function() { avatarError.textContent = ''; avatarError.style.color = '#ef4444'; }, 2000);
+    } else avatarError.textContent = 'Save failed';
+  }).catch(function() { avatarError.textContent = 'Connection error'; });
+}
 
 avatarRemoveBtn.addEventListener('click', async () => {
   try {
