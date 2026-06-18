@@ -11,7 +11,7 @@ const BOT_NICKNAME = 'Pulse Chat Bot';
 const BOT_UID = 'bot_pulsechatbot';
 const BOT_COLOR = '#6366f1';
 
-const ADMIN_USERNAMES = ['teardown777', 'pulse'];
+const ADMIN_USERNAMES = ['teardown777', 'pulse', 'minecraftch'];
 
 const GIGACHAT_AUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
 const GIGACHAT_API_URL = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
@@ -522,24 +522,7 @@ const io = new Server(server, {
       }
     });
 
-    socket.on('photo:send', async ({ chatId, photoUrl, caption }) => {
-      if (!currentUser || !photoUrl) return;
-      try {
-        const { rows } = await db.query(
-          'INSERT INTO photo_messages (chat_id, sender_id, photo_url, caption) VALUES ($1, $2, $3, $4) RETURNING id, chat_id, sender_id, photo_url, caption, created_at',
-          [chatId, currentUser.id, photoUrl, caption]
-        );
-        const { rows: msg } = await db.query(`
-          SELECT pm.id, pm.chat_id, pm.sender_id, pm.photo_url, pm.caption, pm.created_at,
-                 u.nickname as sender_name, u.avatar_color as sender_color
-          FROM photo_messages pm JOIN users u ON pm.sender_id = u.id
-          WHERE pm.id = $1
-        `, [rows[0].id]);
-        io.emit('photo:message', msg[0]);
-      } catch (err) {
-        console.error('Photo send error:', err);
-      }
-    });
+
 
     socket.on('photo:send', async ({ chatId, photoUrl, caption }) => {
       if (!currentUser || !photoUrl) return;
@@ -567,6 +550,7 @@ const io = new Server(server, {
     socket.on('typing:stop', (data) => {
       socket.broadcast.emit('typing:stop', data);
     });
+
 
     socket.on('disconnect', () => {
       if (currentUser) {
