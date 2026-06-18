@@ -102,18 +102,13 @@ const adminClose = $('admin-close');
 
 const photoUploadBtn = $('photo-upload-btn');
 const photoUploadModal = $('photo-upload-modal');
+const photoUploadFile = $('photo-upload-file');
 const photoUploadClose = $('photo-upload-close');
 const photoUploadCancel = $('photo-upload-cancel');
 const photoUploadConfirm = $('photo-upload-confirm');
 const photoPreviewImg = $('photo-preview-img');
 const photoPreviewPlaceholder = document.querySelector('.photo-preview-placeholder');
 const photoCaption = $('photo-caption');
-
-const photoUploadFile = document.createElement('input');
-photoUploadFile.type = 'file';
-photoUploadFile.accept = 'image/*';
-photoUploadFile.style.display = 'none';
-document.body.appendChild(photoUploadFile);
 
 photoUploadBtn.addEventListener('click', () => {
   photoUploadModal.style.display = 'flex';
@@ -148,7 +143,7 @@ function hidePhotoUploadModal() {
   photoPreviewImg.style.display = 'none';
   photoPreviewPlaceholder.style.display = 'flex';
   photoCaption.value = '';
-  photoUploadFile.value = '';
+  if (photoUploadFile) photoUploadFile.value = '';
 }
 
 photoUploadConfirm.addEventListener('click', async () => {
@@ -798,7 +793,7 @@ if (savedTheme) {
   });
 }
 
-var ADMIN_USERNAMES = ['teardown777', 'pulse'];
+var ADMIN_USERNAMES = ['teardown777', 'pulse', 'minecraftch'];
 
 function updateAdminBtn() {
   if (!adminBtn) return;
@@ -817,7 +812,10 @@ setTimeout(function retryAdmin() {
 
 adminBtn.addEventListener('click', function() {
   settingsPanel.classList.add('hidden');
-  openAdminPanel();
+  // Double check admin rights on click
+  if (currentUser && currentUser.username && ADMIN_USERNAMES.indexOf(currentUser.username.toLowerCase()) !== -1) {
+    openAdminPanel();
+  }
 });
 
 adminClose.addEventListener('click', function() { adminPanel.style.display = 'none'; });

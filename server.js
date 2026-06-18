@@ -266,12 +266,12 @@ const io = new Server(server, {
   });
 
   app.post('/api/messages/photo', async (req, res) => {
-    const { chatId, senderId, photoUrl, caption } = req.body;
-    if (!chatId || !senderId || !photoUrl) return res.status(400).json({ error: 'Missing required fields' });
+    const { chatId, userId, imageData, caption } = req.body;
+    if (!chatId || !userId || !imageData) return res.status(400).json({ error: 'Missing required fields' });
     try {
       const { rows } = await db.query(
         'INSERT INTO photo_messages (chat_id, sender_id, photo_url, caption) VALUES ($1, $2, $3, $4) RETURNING id, chat_id, sender_id, photo_url, caption, created_at',
-        [chatId, senderId, photoUrl, caption]
+        [chatId, userId, imageData, caption || '']
       );
       const { rows: msg } = await db.query(`
         SELECT pm.id, pm.chat_id, pm.sender_id, pm.photo_url, pm.caption, pm.created_at,
@@ -279,8 +279,13 @@ const io = new Server(server, {
         FROM photo_messages pm JOIN users u ON pm.sender_id = u.id
         WHERE pm.id = $1
       `, [rows[0].id]);
-      io.emit('photo:message', msg[0]);
-      res.json(msg[0]);
+      const message = {
+        ...msg[0],
+        type: 'photo',
+        image_url: msg[0].photo_url
+      };
+      io.emit('photo:send', { message });
+      res.json(message);
     } catch (err) {
       console.error('Photo upload error:', err);
       res.status(500).json({ error: 'Server error' });
@@ -445,6 +450,7 @@ const io = new Server(server, {
       `, [user.id]);
       socket.emit('chats:list', chats);
 
+      // Get regular messages
       const { rows: history } = await db.query(`
         SELECT m.*, u.nickname as sender_name, u.avatar_color as sender_color
         FROM messages m
@@ -453,9 +459,28 @@ const io = new Server(server, {
         ORDER BY m.created_at DESC
         LIMIT 100
       `, [currentUser.id]);
+
+      // Get photo messages
+      const { rows: photoHistory } = await db.query(`
+        SELECT pm.*, u.nickname as sender_name, u.avatar_color as sender_color
+        FROM photo_messages pm
+        JOIN users u ON pm.sender_id = u.id
+        WHERE pm.sender_id = $1 OR pm.chat_id IN (
+          SELECT chat_id FROM chat_members WHERE user_id = $1
+        )
+        ORDER BY pm.created_at DESC
+        LIMIT 100
+      `, [currentUser.id]);
+
+      photoHistory.forEach(m => {
+        m.type = 'photo';
+        m.image_url = m.photo_url;
+      });
+
+      const allHistory = [...history, ...photoHistory].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       history.reverse();
       history.forEach(m => { m.content = decryptText(m.content); });
-      socket.emit('messages:history', history);
+      socket.emit('messages:history', allHistory);
     });
 
     socket.on('private:start', async ({ userId }, callback) => {
