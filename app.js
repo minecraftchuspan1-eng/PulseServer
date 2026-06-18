@@ -99,7 +99,88 @@ const themeOptions = document.querySelectorAll('.theme-option');
 const adminBtn = $('admin-btn');
 const adminPanel = $('admin-panel');
 const adminClose = $('admin-close');
-const adminBody = $('admin-body');
+
+const photoUploadBtn = $('photo-upload-btn');
+const photoUploadModal = $('photo-upload-modal');
+const photoUploadClose = $('photo-upload-close');
+const photoUploadCancel = $('photo-upload-cancel');
+const photoUploadConfirm = $('photo-upload-confirm');
+const photoPreviewImg = $('photo-preview-img');
+const photoPreviewPlaceholder = document.querySelector('.photo-preview-placeholder');
+const photoCaption = $('photo-caption');
+
+const photoUploadFile = document.createElement('input');
+photoUploadFile.type = 'file';
+photoUploadFile.accept = 'image/*';
+photoUploadFile.style.display = 'none';
+document.body.appendChild(photoUploadFile);
+
+photoUploadBtn.addEventListener('click', () => {
+  photoUploadModal.style.display = 'flex';
+  photoUploadFile.click();
+});
+
+photoUploadClose.addEventListener('click', hidePhotoUploadModal);
+photoUploadCancel.addEventListener('click', hidePhotoUploadModal);
+
+document.querySelector('.photo-upload-backdrop').addEventListener('click', hidePhotoUploadModal);
+
+photoUploadFile.addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Max 2MB');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    photoPreviewImg.src = e.target.result;
+    photoPreviewImg.style.display = 'block';
+    photoPreviewPlaceholder.style.display = 'none';
+    photoCaption.value = '';
+  };
+  reader.readAsDataURL(file);
+});
+
+function hidePhotoUploadModal() {
+  photoUploadModal.style.display = 'none';
+  photoPreviewImg.src = '';
+  photoPreviewImg.style.display = 'none';
+  photoPreviewPlaceholder.style.display = 'flex';
+  photoCaption.value = '';
+  photoUploadFile.value = '';
+}
+
+photoUploadConfirm.addEventListener('click', async () => {
+  const file = photoUploadFile.files[0];
+  if (!file) return;
+  const caption = photoCaption.value.trim();
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64Data = e.target.result;
+    try {
+      const res = await fetch(API + '/api/messages/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          chatId: activeChatId,
+          imageData: base64Data,
+          caption: caption
+        })
+      });
+      if (res.ok) {
+        hidePhotoUploadModal();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Upload failed');
+      }
+    } catch (err) {
+      alert('Connection error');
+    }
+  };
+  reader.readAsDataURL(file);
+});
 
 let auth, googleProvider;
 
@@ -284,6 +365,21 @@ function connectSocket() {
 
   socket.on('typing:stop', ({ userId }) => {
     if (typingIndicator && userId === activeUserId) typingIndicator.style.display = 'none';
+  });
+
+  socket.on('photo:send', ({ message }) => {
+    allMessages.push(message);
+    if (allMessages.length > 200) allMessages = allMessages.slice(-200);
+    if (activeChatId && message.chat_id === activeChatId) {
+      renderMessages();
+      scrollToBottom();
+    } else if (message.receiver_id === currentUser.id) {
+      if (!unreadCounts[message.sender_id]) unreadCounts[message.sender_id] = 0;
+      unreadCounts[message.sender_id]++;
+      loadRecentUsers();
+      playNotification();
+    }
+    loadRecentUsers();
   });
 
   socket.on('username:changed', ({ userId, username }) => {
@@ -840,37 +936,50 @@ function renderMessages() {
     messagesContainer.innerHTML = '<div class="system-message">No messages yet</div>';
     return;
   }
-  msgs.slice(-50).forEach(m => {
-    const isOwn = m.sender_id === currentUser.id;
-    const div = document.createElement('div');
-    div.className = `message ${isOwn ? 'own' : 'other'}`;
-    const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    div.innerHTML = `
-      ${!isOwn ? `<div class="msg-sender">${m.sender_name}</div>` : ''}
-      ${m.content}
-      <div class="msg-time">${time}</div>
-      ${isOwn ? `<button class="msg-delete" data-id="${m.id}">✕</button>` : ''}
-    `;
-    const delBtn = div.querySelector('.msg-delete');
-    if (delBtn) {
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        showConfirm('Delete this message?', () => {
-          fetch(API + '/api/messages/' + m.id + '?userId=' + currentUser.id, { method: 'DELETE' })
-            .then(res => {
-              if (!res.ok) console.error('Delete failed:', res.status);
-              else {
-                allMessages = allMessages.filter(msg => msg.id !== m.id);
-                if (activeChatId) renderMessages();
-              }
-            })
-            .catch(err => console.error('Delete error:', err));
+    msgs.slice(-50).forEach(m => {
+      const isOwn = m.sender_id === currentUser.id;
+      const div = document.createElement('div');
+      div.className = `message ${isOwn ? 'own' : 'other'}`;
+      const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      let contentHtml = '';
+      if (m.type === 'photo') {
+        contentHtml = `
+          <div class="photo-message">
+            <img src="${m.image_url}" class="photo-img" alt="Photo">
+            ${m.caption ? `<div class="photo-caption">${m.caption}</div>` : ''}
+          </div>
+        `;
+      } else {
+        contentHtml = m.content;
+      }
+
+      div.innerHTML = `
+        ${!isOwn ? `<div class="msg-sender">${m.sender_name}</div>` : ''}
+        ${contentHtml}
+        <div class="msg-time">${time}</div>
+        ${isOwn ? `<button class="msg-delete" data-id="${m.id}">✕</button>` : ''}
+      `;
+      const delBtn = div.querySelector('.msg-delete');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showConfirm('Delete this message?', () => {
+            fetch(API + '/api/messages/' + m.id + '?userId=' + currentUser.id, { method: 'DELETE' })
+              .then(res => {
+                if (!res.ok) console.error('Delete failed:', res.status);
+                else {
+                  allMessages = allMessages.filter(msg => msg.id !== m.id);
+                  if (activeChatId) renderMessages();
+                }
+              })
+              .catch(err => console.error('Delete error:', err));
+          });
         });
-      });
-    }
-    messagesContainer.appendChild(div);
-  });
-}
+      }
+      messagesContainer.appendChild(div);
+    });
+  }
 
 function scrollToBottom() {
   requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
