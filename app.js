@@ -679,12 +679,19 @@ if (savedTheme) {
 var ADMIN_EMAILS = ['minecraftchuspan1@gmail.com', 'artemiiest@gmail.com'];
 
 function updateAdminBtn() {
+  if (!adminBtn) return;
   if (currentUser && currentUser.email && ADMIN_EMAILS.indexOf(currentUser.email) !== -1) {
     adminBtn.classList.remove('hidden');
   } else {
     adminBtn.classList.add('hidden');
   }
 }
+
+setTimeout(function retryAdmin() {
+  if (adminBtn && currentUser && currentUser.email && ADMIN_EMAILS.indexOf(currentUser.email) !== -1) {
+    adminBtn.classList.remove('hidden');
+  }
+}, 3000);
 
 adminBtn.addEventListener('click', function() {
   settingsPanel.classList.add('hidden');

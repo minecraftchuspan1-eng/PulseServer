@@ -199,7 +199,7 @@ const io = new Server(server, {
       return res.status(400).json({ error: 'All fields required' });
     }
     try {
-      const { rows: existing } = await db.query('SELECT id FROM users WHERE username = $1', [username]);
+      const { rows: existing } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
       if (existing.length) {
         return res.status(409).json({ error: 'Username already taken' });
       }
@@ -282,7 +282,7 @@ const io = new Server(server, {
     if (!userId || !username) return res.status(400).json({ error: 'Required' });
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.status(400).json({ error: '3-20 chars, letters, numbers, underscore' });
     try {
-      const { rows: existing } = await db.query('SELECT id FROM users WHERE username = $1 AND id != $2', [username, userId]);
+      const { rows: existing } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2', [username, userId]);
       if (existing.length) return res.status(409).json({ error: 'Username taken' });
       await db.query('UPDATE users SET username = $1 WHERE id = $2', [username, userId]);
       io.emit('username:changed', { userId, username });
