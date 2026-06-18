@@ -170,9 +170,10 @@ body {
   flex: 1;
   font-size: 14px;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 #settings-btn {
@@ -442,9 +443,10 @@ body {
 #chat-partner-name {
   font-weight: 600;
   font-size: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 .chat-status {
@@ -1185,24 +1187,6 @@ body {
   }
 }
 
-.user-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-#my-nickname {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-#chat-partner-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
 #profile-nickname {
   display: inline-flex;
   align-items: center;
@@ -1320,6 +1304,7 @@ body {
 
 .admin-search {
   padding: 0 16px 8px;
+  max-width: 300px;
 }
 
 .admin-search input {
