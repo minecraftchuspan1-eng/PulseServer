@@ -69,14 +69,17 @@ async function getGigaChatToken() {
   return gigaChatToken;
 }
 
-async function callGigaChat(userMessage) {
+const DISCLAIMER = /(?:GigaChat|Gigachat|gigachat:?\s*)?Как и любая языковая модель, [^.]+\. Ответ сгенерирован нейросетевой моделью[^.]+\. Во избежание неправильного толкования, разговоры на некоторые темы временно ограничены\.?\s*/i;
+
+function stripDisclaimer(text) {
+  return text.replace(DISCLAIMER, '').trim();
+}
+
+async function callGigaChat(messages) {
   const token = await getGigaChatToken();
   const body = JSON.stringify({
     model: 'GigaChat',
-    messages: [
-      { role: 'system', content: 'Ты — Pulse Chat Bot, дружелюбный помощник в мессенджере Pulse. Отвечай кратко и полезно. Никогда не упоминай, что ты создан какой-либо компанией, и не говори о своей модели. Просто помогай пользователям.' },
-      { role: 'user', content: userMessage }
-    ],
+    messages,
     temperature: 0.7,
     max_tokens: 1000,
   });
@@ -86,12 +89,25 @@ async function callGigaChat(userMessage) {
     'Accept': 'application/json',
   });
   if (status !== 200) throw new Error('GigaChat API error: ' + JSON.stringify(data));
-  return data.choices[0].message.content;
+  return stripDisclaimer(data.choices[0].message.content);
 }
 
 async function handleBotResponse(chatId, userMessage, sender, db, io) {
   try {
-    const reply = await callGigaChat(userMessage);
+    const { rows: history } = await db.query(
+      'SELECT content, sender_id FROM messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT 10',
+      [chatId]
+    );
+    const messages = [
+      { role: 'system', content: 'Ты — Pulse Chat Bot, дружелюбный помощник в мессенджере Pulse. Отвечай кратко и полезно. Никогда не упоминай, что ты создан какой-либо компанией, и не говори о своей модели. Просто помогай пользователям.' },
+    ];
+    history.reverse().forEach(m => {
+      const decrypted = decryptText(m.content);
+      messages.push({ role: m.sender_id === sender.id ? 'user' : 'assistant', content: decrypted });
+    });
+    messages.push({ role: 'user', content: userMessage });
+
+    const reply = await callGigaChat(messages);
     const { rows } = await db.query(
       'INSERT INTO messages (sender_id, receiver_id, chat_id, content) VALUES ($1, $2, $3, $4) RETURNING id',
       [botUser.id, sender.id, chatId, encryptText(reply)]
