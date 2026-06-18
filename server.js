@@ -239,7 +239,13 @@ const io = new Server(server, {
     try {
       const nickname = displayName || email || uid.slice(0, 8);
       const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label, email FROM users WHERE firebase_uid = $1', [uid]);
-      if (existing.length) return res.json({ user: formatUser(existing[0]) });
+      if (existing.length) {
+        if (email && existing[0].email !== email) {
+          await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, existing[0].id]);
+          existing[0].email = email;
+        }
+        return res.json({ user: formatUser(existing[0]) });
+      }
       const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
       const color = colors[Math.floor(Math.random() * colors.length)];
       const username = `google_${uid.slice(0, 8)}`;
