@@ -131,6 +131,7 @@ body {
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .sidebar-header {
@@ -221,6 +222,7 @@ body {
   z-index: 50;
   max-height: 200px;
   overflow-y: auto;
+  max-width: calc(100% - 16px);
 }
 
 .search-results .user-item {
