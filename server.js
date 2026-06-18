@@ -23,10 +23,10 @@ let botUser = null;
 
 
 async function ensureBotUser(db) {
-  const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color FROM users WHERE firebase_uid = $1', [BOT_UID]);
+  const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url FROM users WHERE firebase_uid = $1', [BOT_UID]);
   if (existing.length) { botUser = existing[0]; return; }
   const { rows } = await db.query(
-    'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color',
+    'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color, avatar_url',
     [BOT_USERNAME, BOT_NICKNAME, BOT_COLOR, BOT_UID]
   );
   botUser = rows[0];
@@ -156,7 +156,7 @@ const io = new Server(server, {
 
   function getOnlineUsersList() {
     const list = Array.from(onlineUsers.values()).map(u => ({
-      id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color
+      id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: u.avatar_url || ''
     }));
     if (botUser) list.unshift(botUser);
     return list;
@@ -196,7 +196,7 @@ const io = new Server(server, {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
       const u = rows[0];
-      res.json({ user: { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color } });
+      res.json({ user: { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: u.avatar_url || '' } });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
     }
@@ -207,13 +207,13 @@ const io = new Server(server, {
     if (!uid) return res.status(400).json({ error: 'No uid' });
     try {
       const nickname = displayName || email || uid.slice(0, 8);
-      const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color FROM users WHERE firebase_uid = $1', [uid]);
+      const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url FROM users WHERE firebase_uid = $1', [uid]);
       if (existing.length) return res.json({ user: existing[0] });
       const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
       const color = colors[Math.floor(Math.random() * colors.length)];
       const username = `google_${uid.slice(0, 8)}`;
       const { rows } = await db.query(
-        'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color',
+        'INSERT INTO users (username, nickname, avatar_color, firebase_uid) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color, avatar_url',
         [username, nickname, color, uid]
       );
       res.json({ user: rows[0] });
@@ -224,7 +224,7 @@ const io = new Server(server, {
   });
 
   app.get('/api/users', async (req, res) => {
-    const { rows } = await db.query('SELECT id, username, nickname, avatar_color FROM users');
+    const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url FROM users');
     res.json({ users: rows });
   });
 
@@ -232,7 +232,7 @@ const io = new Server(server, {
     const userId = req.query.userId;
     if (!userId) return res.json({ users: [] });
     const { rows } = await db.query(`
-      SELECT DISTINCT u.id, u.username, u.nickname, u.avatar_color
+      SELECT DISTINCT u.id, u.username, u.nickname, u.avatar_color, u.avatar_url
       FROM messages m
       JOIN users u ON (u.id = m.sender_id OR u.id = m.receiver_id)
       WHERE (m.sender_id = $1 OR m.receiver_id = $1) AND u.id != $1
@@ -250,6 +250,31 @@ const io = new Server(server, {
       await db.query('UPDATE users SET username = $1 WHERE id = $2', [username, userId]);
       io.emit('username:changed', { userId, username });
       res.json({ username });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.put('/api/users/nickname', async (req, res) => {
+    const { userId, nickname } = req.body;
+    if (!userId || !nickname) return res.status(400).json({ error: 'Required' });
+    if (nickname.length < 1 || nickname.length > 30) return res.status(400).json({ error: '1-30 chars' });
+    try {
+      await db.query('UPDATE users SET nickname = $1 WHERE id = $2', [nickname, userId]);
+      io.emit('nickname:changed', { userId, nickname });
+      res.json({ nickname });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.put('/api/users/avatar', async (req, res) => {
+    const { userId, avatarUrl } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Required' });
+    try {
+      await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl || '', userId]);
+      io.emit('avatar:changed', { userId, avatarUrl: avatarUrl || '' });
+      res.json({ avatarUrl: avatarUrl || '' });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
     }

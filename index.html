@@ -102,12 +102,38 @@
           </div>
         </div>
         <div class="settings-section">
-          <h4>Set username</h4>
-          <div class="change-username-row">
+          <h4>Change nickname</h4>
+          <div class="change-row">
+            <input type="text" id="nickname-input" placeholder="New nickname">
+            <button id="nickname-btn">Save</button>
+          </div>
+          <div id="nickname-error" class="settings-error"></div>
+        </div>
+        <div class="settings-section">
+          <h4>Change @username</h4>
+          <div class="change-row">
             <input type="text" id="username-input" placeholder="@newusername">
             <button id="username-btn">Save</button>
           </div>
           <div id="username-error" class="settings-error"></div>
+        </div>
+        <div class="settings-section">
+          <h4>Avatar</h4>
+          <div class="avatar-upload-row">
+            <label class="avatar-upload-label">
+              <input type="file" id="avatar-input" accept="image/*" style="display:none">
+              <span class="avatar-upload-btn">Upload photo</span>
+            </label>
+            <button id="avatar-remove-btn" class="avatar-remove-btn">Remove</button>
+          </div>
+          <div id="avatar-error" class="settings-error"></div>
+        </div>
+        <div class="settings-section">
+          <h4>Theme</h4>
+          <div class="theme-selector">
+            <button class="theme-option active" data-theme="dark">Dark</button>
+            <button class="theme-option" data-theme="light">Light</button>
+          </div>
         </div>
         <button id="settings-logout" class="settings-logout">Logout</button>
       </div>

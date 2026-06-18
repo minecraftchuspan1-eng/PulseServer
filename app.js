@@ -57,6 +57,13 @@ const profileUsername = $('profile-username');
 const profileStatus = $('profile-status');
 const typingIndicator = $('typing-indicator');
 const chatUserMeta = $('chat-user-meta');
+const nicknameInput = $('nickname-input');
+const nicknameBtn = $('nickname-btn');
+const nicknameError = $('nickname-error');
+const avatarInput = $('avatar-input');
+const avatarRemoveBtn = $('avatar-remove-btn');
+const avatarError = $('avatar-error');
+const themeOptions = document.querySelectorAll('.theme-option');
 
 let auth, googleProvider;
 
@@ -156,6 +163,21 @@ function updateUserUI() {
   settingsAvatar.textContent = currentUser.nickname[0].toUpperCase();
   settingsNickname.textContent = currentUser.nickname;
   settingsUsername.textContent = '@' + currentUser.username;
+  if (currentUser.avatar_url) {
+    myAvatar.style.backgroundImage = 'url(' + currentUser.avatar_url + ')';
+    myAvatar.style.backgroundSize = 'cover';
+    myAvatar.textContent = '';
+    settingsAvatar.style.backgroundImage = 'url(' + currentUser.avatar_url + ')';
+    settingsAvatar.style.backgroundSize = 'cover';
+    settingsAvatar.textContent = '';
+  } else {
+    myAvatar.style.backgroundImage = '';
+    myAvatar.style.background = currentUser.avatar_color;
+    myAvatar.textContent = currentUser.nickname[0].toUpperCase();
+    settingsAvatar.style.backgroundImage = '';
+    settingsAvatar.style.background = currentUser.avatar_color;
+    settingsAvatar.textContent = currentUser.nickname[0].toUpperCase();
+  }
 }
 
 function connectSocket() {
@@ -222,6 +244,22 @@ function connectSocket() {
     const userEl = document.querySelector('#profile-username');
     if (userEl && activeUserObj && activeUserObj.id === userId) userEl.textContent = '@' + username;
   });
+
+  socket.on('nickname:changed', ({ userId, nickname }) => {
+    const u = allUsers.find(x => x.id === userId);
+    if (u) u.nickname = nickname;
+    if (activeUserObj && activeUserObj.id === userId) {
+      activeUserObj.nickname = nickname;
+      chatPartnerName.textContent = nickname;
+      chatAvatar.textContent = nickname[0].toUpperCase();
+    }
+  });
+
+  socket.on('avatar:changed', ({ userId, avatarUrl }) => {
+    const u = allUsers.find(x => x.id === userId);
+    if (u) u.avatar_url = avatarUrl;
+    if (activeUserObj && activeUserObj.id === userId) activeUserObj.avatar_url = avatarUrl;
+  });
 }
 
 function updateOnlineStatus() {
@@ -284,7 +322,13 @@ function renderRecentUsers(users) {
     el.className = 'user-item';
     const count = unreadCounts[u.id] || 0;
     const badge = count > 0 ? `<div class="unread-badge">${count > 99 ? '99+' : count}</div>` : '';
-    el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span>${badge}`;
+    var avatarHtml;
+    if (u.avatar_url) {
+      avatarHtml = '<div class="avatar" style="background-image:url(' + u.avatar_url + ');background-size:cover;background-position:center"></div>';
+    } else {
+      avatarHtml = '<div class="avatar" style="background:' + u.avatar_color + '">' + u.nickname[0].toUpperCase() + '</div>';
+    }
+    el.innerHTML = avatarHtml + '<span class="user-name">' + u.nickname + '</span>' + badge;
     el.addEventListener('click', () => startChat(u));
     recentUsersDiv.appendChild(el);
   });
@@ -311,7 +355,13 @@ function renderOnlineUsers(onlineList) {
   others.forEach(u => {
     const el = document.createElement('div');
     el.className = 'user-item';
-    el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span><div class="online-dot"></div>`;
+    var avatarHtml;
+    if (u.avatar_url) {
+      avatarHtml = '<div class="avatar" style="background-image:url(' + u.avatar_url + ');background-size:cover;background-position:center"></div>';
+    } else {
+      avatarHtml = '<div class="avatar" style="background:' + u.avatar_color + '">' + u.nickname[0].toUpperCase() + '</div>';
+    }
+    el.innerHTML = avatarHtml + '<span class="user-name">' + u.nickname + '</span><div class="online-dot"></div>';
     el.addEventListener('click', () => startChat(u));
     onlineUsersDiv.appendChild(el);
   });
@@ -331,7 +381,13 @@ searchInput.addEventListener('input', () => {
       matches.slice(0, 10).forEach(u => {
         const el = document.createElement('div');
         el.className = 'user-item';
-        el.innerHTML = `<div class="avatar" style="background:${u.avatar_color}">${u.nickname[0].toUpperCase()}</div><span class="user-name">${u.nickname}</span>`;
+        var avatarHtml;
+        if (u.avatar_url) {
+          avatarHtml = '<div class="avatar" style="background-image:url(' + u.avatar_url + ');background-size:cover;background-position:center"></div>';
+        } else {
+          avatarHtml = '<div class="avatar" style="background:' + u.avatar_color + '">' + u.nickname[0].toUpperCase() + '</div>';
+        }
+        el.innerHTML = avatarHtml + '<span class="user-name">' + u.nickname + '</span>';
         el.addEventListener('click', () => { searchResultsDiv.classList.add('hidden'); searchInput.value = ''; startChat(u); });
         searchResultsDiv.appendChild(el);
       });
@@ -352,6 +408,15 @@ function openProfile() {
   if (!user) return;
   profileAvatar.style.background = user.avatar_color;
   profileAvatar.textContent = user.nickname[0].toUpperCase();
+  if (user.avatar_url) {
+    profileAvatar.style.backgroundImage = 'url(' + user.avatar_url + ')';
+    profileAvatar.style.backgroundSize = 'cover';
+    profileAvatar.textContent = '';
+  } else {
+    profileAvatar.style.backgroundImage = '';
+    profileAvatar.style.background = user.avatar_color;
+    profileAvatar.textContent = user.nickname[0].toUpperCase();
+  }
   profileNickname.textContent = user.nickname;
   profileUsername.textContent = '@' + user.username;
   profileStatus.textContent = onlineUsersList.some(function(u) { return u.id === user.id; }) ? 'online' : 'offline';
@@ -426,6 +491,91 @@ usernameBtn.addEventListener('click', async () => {
 
 usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') usernameBtn.click(); });
 
+nicknameBtn.addEventListener('click', async () => {
+  const n = nicknameInput.value.trim();
+  if (!n || n.length > 30) { nicknameError.textContent = '1-30 chars'; return; }
+  nicknameError.textContent = '';
+  try {
+    const res = await fetch(API + '/api/users/nickname', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, nickname: n })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      currentUser.nickname = data.nickname;
+      localStorage.setItem('pulse_user', JSON.stringify(currentUser));
+      updateUserUI();
+      nicknameInput.value = '';
+      nicknameError.textContent = 'Saved!';
+      nicknameError.style.color = '#22c55e';
+      setTimeout(() => { nicknameError.textContent = ''; nicknameError.style.color = '#ef4444'; }, 2000);
+    } else nicknameError.textContent = data.error;
+  } catch { nicknameError.textContent = 'Connection error'; }
+});
+
+nicknameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nicknameBtn.click(); });
+
+avatarInput.addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  if (file.size > 500 * 1024) { avatarError.textContent = 'Max 500KB'; return; }
+  avatarError.textContent = '';
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const dataUrl = e.target.result;
+    try {
+      const res = await fetch(API + '/api/users/avatar', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
+      });
+      if (res.ok) {
+        currentUser.avatar_url = dataUrl;
+        localStorage.setItem('pulse_user', JSON.stringify(currentUser));
+        updateUserUI();
+        avatarError.textContent = 'Saved!';
+        avatarError.style.color = '#22c55e';
+        setTimeout(() => { avatarError.textContent = ''; avatarError.style.color = '#ef4444'; }, 2000);
+      } else avatarError.textContent = 'Save failed';
+    } catch { avatarError.textContent = 'Connection error'; }
+  };
+  reader.readAsDataURL(file);
+});
+
+avatarRemoveBtn.addEventListener('click', async () => {
+  try {
+    const res = await fetch(API + '/api/users/avatar', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, avatarUrl: '' })
+    });
+    if (res.ok) {
+      currentUser.avatar_url = '';
+      localStorage.setItem('pulse_user', JSON.stringify(currentUser));
+      updateUserUI();
+      avatarError.textContent = 'Avatar removed';
+      avatarError.style.color = '#22c55e';
+      setTimeout(() => { avatarError.textContent = ''; avatarError.style.color = '#ef4444'; }, 2000);
+    }
+  } catch { avatarError.textContent = 'Connection error'; }
+});
+
+themeOptions.forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    themeOptions.forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    var theme = btn.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('pulse_theme', theme);
+  });
+});
+
+var savedTheme = localStorage.getItem('pulse_theme');
+if (savedTheme) {
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  themeOptions.forEach(function(btn) {
+    if (btn.getAttribute('data-theme') === savedTheme) btn.classList.add('active');
+  });
+}
+
 function startChat(user) {
   activeUserId = user.id;
   activeUserObj = user;
@@ -434,6 +584,15 @@ function startChat(user) {
   chatPartnerName.textContent = user.nickname;
   chatAvatar.style.background = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
+  if (user.avatar_url) {
+    chatAvatar.style.backgroundImage = 'url(' + user.avatar_url + ')';
+    chatAvatar.style.backgroundSize = 'cover';
+    chatAvatar.textContent = '';
+  } else {
+    chatAvatar.style.backgroundImage = '';
+    chatAvatar.style.background = user.avatar_color;
+    chatAvatar.textContent = user.nickname[0].toUpperCase();
+  }
   if (typingIndicator) typingIndicator.style.display = 'none';
   unreadCounts[user.id] = 0;
   updateOnlineStatus();

@@ -20,6 +20,7 @@ async function initDB() {
   `);
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS firebase_uid TEXT UNIQUE');
   await pool.query('ALTER TABLE users ALTER COLUMN password DROP NOT NULL');
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT ''");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chats (
       id SERIAL PRIMARY KEY,
