@@ -258,7 +258,19 @@ function connectSocket() {
   socket.on('avatar:changed', ({ userId, avatarUrl }) => {
     const u = allUsers.find(x => x.id === userId);
     if (u) u.avatar_url = avatarUrl;
-    if (activeUserObj && activeUserObj.id === userId) activeUserObj.avatar_url = avatarUrl;
+    if (activeUserObj && activeUserObj.id === userId) {
+      activeUserObj.avatar_url = avatarUrl;
+      if (avatarUrl) {
+        chatAvatar.style.backgroundImage = 'url(' + avatarUrl + ')';
+        chatAvatar.style.backgroundSize = 'cover';
+        chatAvatar.textContent = '';
+      } else {
+        chatAvatar.style.backgroundImage = '';
+        chatAvatar.style.background = activeUserObj.avatar_color;
+        chatAvatar.textContent = activeUserObj.nickname[0].toUpperCase();
+      }
+    }
+    loadRecentUsers();
   });
 }
 
