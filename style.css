@@ -1152,9 +1152,17 @@ body {
     padding: 8px 10px;
   }
 
-  .sidebar-search input {
-    font-size: 16px;
-  }
+.sidebar-search input {
+  width: 100%;
+  max-width: 200px;
+  padding: 11px 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+}
 
   .online-users-section,
   .recent-section {
