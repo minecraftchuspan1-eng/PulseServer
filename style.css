@@ -418,10 +418,11 @@ body {
 
 .typing-indicator {
   display: none;
-  padding: 6px 12px;
+  padding: 4px 12px 2px;
   gap: 4px;
   align-items: center;
-  min-height: 24px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .typing-indicator span {
@@ -467,7 +468,7 @@ body {
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 10px 12px 4px;
   display: flex;
   flex-direction: column;
   gap: 4px;
