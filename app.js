@@ -256,8 +256,7 @@ function connectSocket() {
   });
 
   socket.on('avatar:changed', ({ userId, avatarUrl }) => {
-    const u = allUsers.find(x => x.id === userId);
-    if (u) u.avatar_url = avatarUrl;
+    allUsers.forEach(function(u) { if (u.id === userId) u.avatar_url = avatarUrl; });
     onlineUsersList.forEach(function(ou) { if (ou.id === userId) ou.avatar_url = avatarUrl; });
     renderOnlineUsers(onlineUsersList);
     if (activeUserObj && activeUserObj.id === userId) {
@@ -272,6 +271,7 @@ function connectSocket() {
         chatAvatar.textContent = activeUserObj.nickname[0].toUpperCase();
       }
     }
+    loadAllUsers();
     loadRecentUsers();
   });
 }
@@ -311,7 +311,7 @@ function showChat() {
 
 async function loadAllUsers() {
   try {
-    const res = await fetch(API + '/api/users');
+    const res = await fetch(API + '/api/users?_t=' + Date.now());
     const data = await res.json();
     allUsers = data.users.filter(u => u.id !== currentUser.id);
   } catch {}
@@ -319,7 +319,7 @@ async function loadAllUsers() {
 
 async function loadRecentUsers() {
   try {
-    const res = await fetch(API + '/api/users/recent?userId=' + currentUser.id);
+    const res = await fetch(API + '/api/users/recent?userId=' + currentUser.id + '&_t=' + Date.now());
     const data = await res.json();
     renderRecentUsers(data.users);
   } catch {}

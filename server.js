@@ -150,7 +150,7 @@ const io = new Server(server, {
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
   });
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
   const onlineUsers = new Map();
 
