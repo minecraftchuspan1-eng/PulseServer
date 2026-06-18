@@ -459,10 +459,9 @@ function startChat(user) {
 
 function renderMessages() {
   const msgs = allMessages.filter(m => m.chat_id === activeChatId);
-  messagesList.innerHTML = '';
+  messagesContainer.innerHTML = '';
   if (!msgs.length) {
-    messagesList.innerHTML = '<div class="system-message">No messages yet</div>';
-    typingIndicator.style.display = 'none';
+    messagesContainer.innerHTML = '<div class="system-message">No messages yet</div>';
     return;
   }
   msgs.slice(-50).forEach(m => {
@@ -498,10 +497,7 @@ function renderMessages() {
 }
 
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    if (messagesList.lastElementChild) messagesList.lastElementChild.scrollIntoView(false);
-    else messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  });
+  requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
 }
 
 function playNotification() {
