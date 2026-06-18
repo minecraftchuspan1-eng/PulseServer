@@ -18,6 +18,7 @@ const onlineUsersDiv = $('online-users');
 const recentUsersDiv = $('recent-users');
 const searchResultsDiv = $('search-results');
 const messagesContainer = $('messages-container');
+const messagesList = $('messages-list');
 const messageInput = $('message-input');
 const sendBtn = $('send-btn');
 const chatPlaceholder = $('chat-placeholder');
@@ -458,9 +459,10 @@ function startChat(user) {
 
 function renderMessages() {
   const msgs = allMessages.filter(m => m.chat_id === activeChatId);
-  messagesContainer.innerHTML = '';
+  messagesList.innerHTML = '';
   if (!msgs.length) {
-    messagesContainer.innerHTML = '<div class="system-message">No messages yet</div>';
+    messagesList.innerHTML = '<div class="system-message">No messages yet</div>';
+    typingIndicator.style.display = 'none';
     return;
   }
   msgs.slice(-50).forEach(m => {
@@ -496,7 +498,10 @@ function renderMessages() {
 }
 
 function scrollToBottom() {
-  requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
+  requestAnimationFrame(() => {
+    if (messagesList.lastElementChild) messagesList.lastElementChild.scrollIntoView(false);
+    else messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  });
 }
 
 function playNotification() {
