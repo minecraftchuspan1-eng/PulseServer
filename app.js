@@ -26,6 +26,7 @@ const chatArea = $('chat-area');
 const sidebar = $('sidebar');
 const chatBack = $('chat-back');
 const chatDeleteBtn = $('chat-delete-btn');
+const profileEyeBtn = $('profile-eye-btn');
 const chatPartnerName = $('chat-partner-name');
 const chatAvatar = $('chat-avatar');
 const chatStatus = $('chat-status');
@@ -362,6 +363,7 @@ profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel
 
 chatUserMeta.addEventListener('click', openProfile);
 chatAvatar.addEventListener('click', openProfile);
+profileEyeBtn.addEventListener('click', openProfile);
 
 let typingTimer = null;
 function emitTypingStart() {
