@@ -40,16 +40,16 @@ async function initDB() {
     )
   `);
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
+    CREATE TABLE IF NOT EXISTS photo_messages (
       id SERIAL PRIMARY KEY,
+      chat_id INTEGER NOT NULL REFERENCES chats(id),
       sender_id INTEGER NOT NULL REFERENCES users(id),
-      receiver_id INTEGER,
-      chat_id INTEGER,
-      content TEXT NOT NULL,
-      type TEXT DEFAULT 'text',
+      photo_url TEXT NOT NULL,
+      caption TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
 
   return pool;
 }
