@@ -318,6 +318,14 @@ function connectSocket() {
     onlineUsersList = users;
     renderOnlineUsers(users);
     updateOnlineStatus();
+    if (currentUser) {
+      var me = users.find(function(u) { return u.id === currentUser.id; });
+      if (me) {
+        currentUser.label = me.label || '';
+        localStorage.setItem('pulse_user', JSON.stringify(currentUser));
+        updateUserUI();
+      }
+    }
   });
 
   socket.on('messages:history', (messages) => {
@@ -431,6 +439,7 @@ function connectSocket() {
     }
     if (currentUser && currentUser.id === userId) {
       currentUser.label = label;
+      localStorage.setItem('pulse_user', JSON.stringify(currentUser));
       updateUserUI();
     }
     loadRecentUsers();
