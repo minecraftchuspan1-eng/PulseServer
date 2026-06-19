@@ -126,6 +126,11 @@ const membersClose = $('members-close');
 const membersBody = $('members-body');
 let createType = 'group';
 let activeChatMembers = [];
+const chatAvatarInput = document.createElement('input');
+chatAvatarInput.type = 'file';
+chatAvatarInput.accept = 'image/*';
+chatAvatarInput.style.display = 'none';
+document.body.appendChild(chatAvatarInput);
 
 photoUploadBtn.addEventListener('click', () => {
   if (!activeChatId) { alert('Select a chat first'); return; }
@@ -386,6 +391,7 @@ function connectSocket() {
   });
 
   socket.on('chat:created', (chat) => {
+    if (Number(chat.owner_id) !== Number(currentUser.id)) return;
     var exists = myChats.some(function(c) { return c.id === chat.id; });
     if (!exists) {
       myChats.push(chat);
@@ -424,6 +430,31 @@ function connectSocket() {
   });
 
   socket.on('chat:member:unbanned', () => {});
+
+  socket.on('chat:label:changed', ({ chatId, label }) => {
+    var chat = myChats.find(function(c) { return Number(c.id) === Number(chatId); });
+    if (chat) chat.label = label;
+    if (activeChatObj && Number(activeChatObj.id) === Number(chatId)) {
+      activeChatObj.label = label;
+    }
+    renderChats();
+  });
+
+  socket.on('chat:avatar:changed', ({ chatId, avatarUrl }) => {
+    var chat = myChats.find(function(c) { return Number(c.id) === Number(chatId); });
+    if (chat) chat.avatar_url = avatarUrl;
+    if (activeChatObj && Number(activeChatObj.id) === Number(chatId)) {
+      activeChatObj.avatar_url = avatarUrl;
+      var url = avatarUrl;
+      if (url && url.startsWith('/')) url = API + url;
+      if (url) {
+        chatAvatar.style.backgroundImage = 'url(' + url + ')';
+        chatAvatar.style.backgroundSize = 'cover';
+        chatAvatar.textContent = '';
+      }
+    }
+    renderChats();
+  });
 
   socket.on('chat:member:role', ({ chatId, targetId, role, members }) => {
     if (Number(activeChatId) === Number(chatId)) activeChatMembers = members || [];
@@ -641,12 +672,24 @@ function renderChats() {
 function loadMembers(chatId) {
   fetch(API + '/api/chats/' + chatId + '/members?userId=' + currentUser.id + '&_t=' + Date.now())
     .then(function(r) { return r.json(); })
-    .then(function(data) { activeChatMembers = data.members || []; renderMembersModal(); })
+    .then(function(data) {
+      activeChatMembers = data.members || [];
+      updateChatHeader();
+      if (membersModal.style.display === 'flex') renderMembersModalBody();
+    })
     .catch(function() {});
 }
 
 function renderMembersModal() {
-  if (membersModal.style.display !== 'flex') return;
+  if (activeChatMembers && activeChatMembers.length) {
+    renderMembersModalBody();
+  } else {
+    membersBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Loading...</div>';
+    loadMembers(activeChatId);
+  }
+}
+
+function renderMembersModalBody() {
   membersBody.innerHTML = '';
   if (!activeChatMembers || !activeChatMembers.length) {
     membersBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">No members</div>';
@@ -759,12 +802,21 @@ function openGroupChat(chat) {
     metaSpan.textContent = '@' + chat.username;
     chatPartnerName.appendChild(metaSpan);
   }
-  chatAvatar.style.background = chat.type === 'channel' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #10b981, #059669)';
-  chatAvatar.style.backgroundImage = 'none';
-  if (chat.type === 'channel') {
-    chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
+  var avUrl = chat.avatar_url;
+  if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+  if (avUrl) {
+    chatAvatar.style.backgroundImage = 'url(' + avUrl + ')';
+    chatAvatar.style.backgroundSize = 'cover';
+    chatAvatar.style.background = 'transparent';
+    chatAvatar.innerHTML = '';
   } else {
-    chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+    chatAvatar.style.background = chat.type === 'channel' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #10b981, #059669)';
+    chatAvatar.style.backgroundImage = 'none';
+    if (chat.type === 'channel') {
+      chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
+    } else {
+      chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+    }
   }
   chatAvatar.textContent = '';
   chatStatus.textContent = '';
@@ -776,11 +828,16 @@ function openGroupChat(chat) {
   }
   showChat();
   loadMembers(chat.id);
-  chatDeleteBtn.onclick = function() {
-    showConfirm('Delete ' + (chat.name || 'this chat') + '?', function() {
-      fetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' }).catch(function(){});
-    });
-  };
+  if (Number(chat.owner_id) === Number(currentUser.id)) {
+    chatDeleteBtn.style.display = '';
+    chatDeleteBtn.onclick = function() {
+      showConfirm('Delete ' + (chat.name || 'this chat') + '?', function() {
+        fetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' }).catch(function(){});
+      });
+    };
+  } else {
+    chatDeleteBtn.style.display = 'none';
+  }
   profileEyeBtn.title = 'Members';
   profileEyeBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
   profileEyeBtn.style.display = '';
@@ -1000,7 +1057,56 @@ profileClose.onclick = function() { profilePanel.style.display = 'none'; };
 profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
 
 chatUserMeta.addEventListener('click', openProfileOrMembers);
-chatAvatar.addEventListener('click', openProfileOrMembers);
+chatAvatar.addEventListener('click', function() {
+  if (activeChatObj && (activeChatObj.type === 'group' || activeChatObj.type === 'channel')) {
+    var myRole = 'member';
+    activeChatMembers.forEach(function(m) {
+      if (Number(m.id) === Number(currentUser.id)) myRole = m.role;
+    });
+    if (myRole === 'owner' || myRole === 'admin') {
+      chatAvatarInput.click();
+      return;
+    }
+  }
+  openProfileOrMembers();
+});
+
+chatAvatarInput.addEventListener('change', function() {
+  var file = this.files[0];
+  if (!file) return;
+  if (file.size > 500 * 1024) { alert('Max 500KB'); this.value = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var max = 200;
+      var w = img.width, h = img.height;
+      if (w > max || h > max) { var r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+      var c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      var dataUrl = c.toDataURL('image/jpeg', 0.8);
+      fetch(API + '/api/chats/' + activeChatId + '/avatar', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) { alert(data.error); return; }
+        activeChatObj.avatar_url = data.avatarUrl;
+        var url = data.avatarUrl;
+        if (url && url.startsWith('/')) url = API + url;
+        if (url) {
+          chatAvatar.style.backgroundImage = 'url(' + url + ')';
+          chatAvatar.style.backgroundSize = 'cover';
+          chatAvatar.style.background = 'transparent';
+          chatAvatar.innerHTML = '';
+        }
+      }).catch(function() { alert('Upload failed'); });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
 profileEyeBtn.addEventListener('click', openProfileOrMembers);
 
 let typingTimer = null;
@@ -1275,63 +1381,144 @@ createChatName.addEventListener('keydown', function(e) { if (e.key === 'Enter') 
 createChatUsername.addEventListener('keydown', function(e) { if (e.key === 'Enter') createChatSubmit.click(); });
 createChatDesc.addEventListener('keydown', function(e) { if (e.key === 'Enter') createChatSubmit.click(); });
 
+var adminTab = 'users';
+var allAdminUsers = [];
+var allAdminChats = [];
+
 function openAdminPanel() {
   adminBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Loading...</div>';
   adminPanel.style.display = 'flex';
+  adminTab = 'users';
+  $('admin-tab-users').classList.add('active');
+  $('admin-tab-chats').classList.remove('active');
+  $('admin-search-input').value = '';
+  loadAdminUsers();
+}
+
+function loadAdminUsers() {
   fetch(API + '/api/admin/users?adminId=' + currentUser.id)
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      var allAdminUsers = data.users;
-      adminBody.innerHTML = '';
-      var adminSearchInput = $('admin-search-input');
-      adminSearchInput.value = '';
-      function renderAdminUsers(filter) {
-        adminBody.innerHTML = '';
-        var q = filter.toLowerCase();
-        var matches = allAdminUsers.filter(function(u) { return u.username.toLowerCase().indexOf(q) !== -1 || u.nickname.toLowerCase().indexOf(q) !== -1; });
-        if (!matches.length) {
-          adminBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Not found</div>';
-          return;
-        }
-        matches.forEach(function(u) {
-          var row = document.createElement('div');
-          row.className = 'admin-user-item';
-          var info = document.createElement('div');
-          info.className = 'admin-user-info';
-          var nameRow = document.createElement('div');
-          nameRow.className = 'admin-user-name';
-          nameRow.textContent = u.nickname;
-          var labelEl = createLabelHtml(u.label);
-          if (labelEl) nameRow.appendChild(labelEl);
-          info.appendChild(nameRow);
-          var emailRow = document.createElement('div');
-          emailRow.className = 'admin-user-email';
-          emailRow.textContent = '@' + u.username + (u.email ? ' — ' + u.email : '');
-          info.appendChild(emailRow);
-          row.appendChild(info);
-          ['verified', 'scam'].forEach(function(lbl) {
-            var btn = document.createElement('button');
-            btn.className = 'admin-label-btn' + (u.label === lbl ? ' active-' + lbl : '');
-            btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
-            btn.addEventListener('click', function() {
-              var newLabel = u.label === lbl ? '' : lbl;
-              fetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ label: newLabel })
-              }).then(function(r) { return r.json(); }).then(function() {
-                u.label = newLabel;
-                renderAdminUsers(adminSearchInput.value);
-              }).catch(function() {});
-            });
-            row.appendChild(btn);
-          });
-          adminBody.appendChild(row);
-        });
-      }
-      renderAdminUsers('');
-      adminSearchInput.oninput = function() { renderAdminUsers(adminSearchInput.value); };
+      allAdminUsers = data.users || [];
+      loadAdminChats();
     }).catch(function() { adminBody.innerHTML = '<div style="color:#ef4444;text-align:center;padding:20px;">Failed to load</div>'; });
 }
+
+function loadAdminChats() {
+  fetch(API + '/api/admin/chats?adminId=' + currentUser.id)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      allAdminChats = data.chats || [];
+      renderAdminPanel('');
+    }).catch(function() {});
+}
+
+function renderAdminPanel(filter) {
+  adminBody.innerHTML = '';
+  var q = filter.toLowerCase();
+  if (adminTab === 'users') {
+    var matches = allAdminUsers.filter(function(u) { return u.username.toLowerCase().indexOf(q) !== -1 || u.nickname.toLowerCase().indexOf(q) !== -1 || (u.email && u.email.toLowerCase().indexOf(q) !== -1); });
+    if (!matches.length) {
+      adminBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Not found</div>';
+      return;
+    }
+    matches.forEach(function(u) {
+      var row = document.createElement('div');
+      row.className = 'admin-user-item';
+      var info = document.createElement('div');
+      info.className = 'admin-user-info';
+      var nameRow = document.createElement('div');
+      nameRow.className = 'admin-user-name';
+      nameRow.textContent = u.nickname;
+      var labelEl = createLabelHtml(u.label);
+      if (labelEl) nameRow.appendChild(labelEl);
+      info.appendChild(nameRow);
+      var emailRow = document.createElement('div');
+      emailRow.className = 'admin-user-email';
+      emailRow.textContent = '@' + u.username + (u.email ? ' — ' + u.email : '');
+      info.appendChild(emailRow);
+      row.appendChild(info);
+      ['verified', 'scam'].forEach(function(lbl) {
+        var btn = document.createElement('button');
+        btn.className = 'admin-label-btn' + (u.label === lbl ? ' active-' + lbl : '');
+        btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
+        btn.addEventListener('click', function() {
+          var newLabel = u.label === lbl ? '' : lbl;
+          fetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: newLabel })
+          }).then(function(r) { return r.json(); }).then(function() {
+            u.label = newLabel;
+            renderAdminPanel($('admin-search-input').value);
+          }).catch(function() {});
+        });
+        row.appendChild(btn);
+      });
+      adminBody.appendChild(row);
+    });
+  } else {
+    var matches = allAdminChats.filter(function(c) { return (c.name && c.name.toLowerCase().indexOf(q) !== -1) || (c.username && c.username.toLowerCase().indexOf(q) !== -1); });
+    if (!matches.length) {
+      adminBody.innerHTML = '<div style="color:#52525b;text-align:center;padding:20px;">Not found</div>';
+      return;
+    }
+    matches.forEach(function(c) {
+      var row = document.createElement('div');
+      row.className = 'admin-user-item';
+      var info = document.createElement('div');
+      info.className = 'admin-user-info';
+      var nameRow = document.createElement('div');
+      nameRow.className = 'admin-user-name';
+      nameRow.textContent = c.name || (c.type === 'channel' ? 'Channel' : 'Group');
+      var labelEl = createLabelHtml(c.label);
+      if (labelEl) nameRow.appendChild(labelEl);
+      info.appendChild(nameRow);
+      var emailRow = document.createElement('div');
+      emailRow.className = 'admin-user-email';
+      emailRow.textContent = '@' + c.username + ' — ' + c.type;
+      info.appendChild(emailRow);
+      row.appendChild(info);
+      ['verified', 'scam'].forEach(function(lbl) {
+        var btn = document.createElement('button');
+        btn.className = 'admin-label-btn' + (c.label === lbl ? ' active-' + lbl : '');
+        btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
+        btn.addEventListener('click', function() {
+          var newLabel = c.label === lbl ? '' : lbl;
+          fetch(API + '/api/chats/' + c.id + '/label?adminId=' + currentUser.id, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: newLabel })
+          }).then(function(r) { return r.json(); }).then(function() {
+            c.label = newLabel;
+            renderAdminPanel($('admin-search-input').value);
+          }).catch(function() {});
+        });
+        row.appendChild(btn);
+      });
+      adminBody.appendChild(row);
+    });
+  }
+}
+
+$('admin-tab-users').addEventListener('click', function() {
+  adminTab = 'users';
+  $('admin-tab-users').classList.add('active');
+  $('admin-tab-chats').classList.remove('active');
+  $('admin-search-input').value = '';
+  renderAdminPanel('');
+});
+
+$('admin-tab-chats').addEventListener('click', function() {
+  adminTab = 'chats';
+  $('admin-tab-chats').classList.add('active');
+  $('admin-tab-users').classList.remove('active');
+  $('admin-search-input').value = '';
+  if (!allAdminChats.length) loadAdminChats();
+  else renderAdminPanel('');
+});
+
+document.getElementById('admin-search-input').addEventListener('input', function() {
+  renderAdminPanel(this.value);
+});
 
 function startChat(user) {
   activeUserId = user.id;

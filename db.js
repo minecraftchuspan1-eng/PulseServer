@@ -38,6 +38,9 @@ async function initDB() {
   await pool.query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS username TEXT UNIQUE");
   await pool.query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS owner_id INTEGER REFERENCES users(id)");
   await pool.query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''");
+  await pool.query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT ''");
+  await pool.query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS avatar_version INTEGER DEFAULT 0");
+  await pool.query("ALTER TABLE chats ADD COLUMN IF NOT EXISTS label TEXT DEFAULT ''");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS chat_members (
       chat_id INTEGER NOT NULL REFERENCES chats(id),

@@ -580,6 +580,57 @@ const io = new Server(server, {
     }
   });
 
+  app.put('/api/chats/:id/avatar', async (req, res) => {
+    const chatId = req.params.id;
+    const { userId, avatarUrl } = req.body;
+    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: member } = await db.query("SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')", [chatId, userId]);
+      if (!member.length) return res.status(403).json({ error: 'Only owner/admin can change avatar' });
+      const hasAvatar = avatarUrl && avatarUrl.startsWith('data:');
+      const { rows: cur } = await db.query('SELECT avatar_version FROM chats WHERE id = $1', [chatId]);
+      const newVer = (cur.length ? (cur[0].avatar_version || 0) : 0) + 1;
+      await db.query('UPDATE chats SET avatar_url = $1, avatar_version = $2 WHERE id = $3', [avatarUrl || '', newVer, chatId]);
+      const clientUrl = hasAvatar ? '/api/chat-avatar/' + chatId + '?v=' + newVer : '';
+      io.emit('chat:avatar:changed', { chatId: Number(chatId), avatarUrl: clientUrl });
+      res.json({ avatarUrl: clientUrl });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.get('/api/admin/chats', async (req, res) => {
+    const userId = req.query.adminId;
+    if (!userId || !(await isAdmin(userId))) return res.status(403).json({ error: 'Forbidden' });
+    const { rows } = await db.query('SELECT id, name, type, username, owner_id, description, label FROM chats WHERE type IN (\'group\', \'channel\') ORDER BY id');
+    res.json({ chats: rows });
+  });
+
+  app.put('/api/chats/:id/label', async (req, res) => {
+    const adminId = req.query.adminId;
+    if (!adminId || !(await isAdmin(adminId))) return res.status(403).json({ error: 'Forbidden' });
+    const { label } = req.body;
+    if (!['verified', 'scam', ''].includes(label)) return res.status(400).json({ error: 'Invalid label' });
+    await db.query('UPDATE chats SET label = $1 WHERE id = $2', [label, req.params.id]);
+    io.emit('chat:label:changed', { chatId: Number(req.params.id), label });
+    res.json({ label });
+  });
+
+  app.get('/api/chat-avatar/:chatId', async (req, res) => {
+    try {
+      const { rows } = await db.query('SELECT avatar_url FROM chats WHERE id = $1', [req.params.chatId]);
+      if (!rows.length || !rows[0].avatar_url) return res.status(404).json({ error: 'Not found' });
+      const matches = rows[0].avatar_url.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) return res.status(400).json({ error: 'Invalid avatar' });
+      const buf = Buffer.from(matches[2], 'base64');
+      res.setHeader('Content-Type', matches[1]);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(buf);
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
   app.get('/api/chats/:id/members', async (req, res) => {
     const chatId = req.params.id;
     const { userId } = req.query;
