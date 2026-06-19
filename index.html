@@ -36,6 +36,10 @@
         <input type="text" id="search-input" placeholder="Search by @username...">
         <div id="search-results" class="search-results hidden"></div>
       </div>
+      <div class="chats-section">
+        <h3>Chats <button id="create-chat-btn" class="create-chat-btn" title="Create group or channel"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button></h3>
+        <div id="chats-list"></div>
+      </div>
       <div class="online-users-section">
         <h3>Online</h3>
         <div id="online-users"></div>
@@ -177,6 +181,58 @@
       <div id="profile-username"></div>
       <div id="profile-label"></div>
       <div id="profile-status"></div>
+    </div>
+  </div>
+
+  <div id="create-chat-modal" class="create-chat-modal" style="display:none">
+    <div class="create-chat-backdrop"></div>
+    <div class="create-chat-content">
+      <div class="create-chat-header">
+        <h3>Create</h3>
+        <button id="create-chat-close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="create-chat-body">
+        <div class="create-type-selector">
+          <button id="create-type-group" class="create-type-btn active" data-type="group">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Group
+          </button>
+          <button id="create-type-channel" class="create-type-btn" data-type="channel">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>
+            Channel
+          </button>
+        </div>
+        <div class="create-field">
+          <label>Name</label>
+          <input type="text" id="create-chat-name" placeholder="Chat name" maxlength="50">
+        </div>
+        <div class="create-field">
+          <label>@username (optional, unique)</label>
+          <input type="text" id="create-chat-username" placeholder="@username" maxlength="20">
+          <div id="create-chat-username-status" class="create-field-status"></div>
+        </div>
+        <div class="create-field">
+          <label>Description (optional)</label>
+          <input type="text" id="create-chat-desc" placeholder="What is this about?" maxlength="200">
+        </div>
+        <div id="create-chat-error" class="create-field-status" style="color:#ef4444"></div>
+        <button id="create-chat-submit" class="create-chat-submit">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="members-modal" class="members-modal" style="display:none">
+    <div class="members-backdrop"></div>
+    <div class="members-content">
+      <div class="members-header">
+        <h3>Members</h3>
+        <button id="members-close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="members-body" id="members-body"></div>
     </div>
   </div>
 

@@ -273,6 +273,14 @@ const io = new Server(server, {
     const { chatId, userId, imageData, caption } = req.body;
     if (!chatId || !userId || !imageData) return res.status(400).json({ error: 'Missing required fields' });
     try {
+      const { rows: chatInfo } = await db.query('SELECT type FROM chats WHERE id = $1', [chatId]);
+      if (!chatInfo.length) return res.status(404).json({ error: 'Chat not found' });
+      if (chatInfo[0].type === 'channel') {
+        const { rows: member } = await db.query("SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')", [chatId, userId]);
+        if (!member.length) return res.status(403).json({ error: 'Only admins can post in channels' });
+      }
+      const { rows: banned } = await db.query('SELECT user_id FROM chat_bans WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (banned.length) return res.status(403).json({ error: 'You are banned' });
       const { rows } = await db.query(
         'INSERT INTO photo_messages (chat_id, sender_id, photo_url, caption) VALUES ($1, $2, $3, $4) RETURNING id, chat_id, sender_id, photo_url, caption, created_at',
         [chatId, userId, imageData, caption || '']
@@ -401,10 +409,18 @@ const io = new Server(server, {
     const userId = req.query.userId;
     if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
     try {
-      const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
-      if (!member.length) return res.status(403).json({ error: 'Not a member' });
+      const { rows: chat } = await db.query('SELECT type, owner_id FROM chats WHERE id = $1', [chatId]);
+      if (!chat.length) return res.status(404).json({ error: 'Chat not found' });
+      if (chat[0].type === 'group' || chat[0].type === 'channel') {
+        if (Number(chat[0].owner_id) !== Number(userId)) return res.status(403).json({ error: 'Only owner can delete' });
+      } else {
+        const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+        if (!member.length) return res.status(403).json({ error: 'Not a member' });
+      }
       await db.query('DELETE FROM messages WHERE chat_id = $1', [chatId]);
+      await db.query('DELETE FROM photo_messages WHERE chat_id = $1', [chatId]);
       await db.query('DELETE FROM chat_members WHERE chat_id = $1', [chatId]);
+      await db.query('DELETE FROM chat_bans WHERE chat_id = $1', [chatId]);
       await db.query('DELETE FROM chats WHERE id = $1', [chatId]);
       io.emit('chat:deleted', { chatId });
       res.json({ ok: true });
@@ -424,6 +440,202 @@ const io = new Server(server, {
       await db.query('DELETE FROM messages WHERE id = $1', [messageId]);
       io.emit('message:deleted', { messageId });
       res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/username/check', async (req, res) => {
+    const { username } = req.body;
+    if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.json({ available: false });
+    try {
+      const { rows: users } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+      const { rows: chats } = await db.query('SELECT id FROM chats WHERE LOWER(username) = LOWER($1)', [username]);
+      res.json({ available: users.length === 0 && chats.length === 0 });
+    } catch { res.json({ available: false }); }
+  });
+
+  app.post('/api/chats/create', async (req, res) => {
+    const { userId, name, type, username, description } = req.body;
+    if (!userId || !name || !type || !['group', 'channel'].includes(type)) return res.status(400).json({ error: 'Invalid params' });
+    if (username && !/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.status(400).json({ error: '3-20 chars, letters, numbers, underscore' });
+    try {
+      if (username) {
+        const { rows: users } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+        const { rows: chats } = await db.query('SELECT id FROM chats WHERE LOWER(username) = LOWER($1)', [username]);
+        if (users.length || chats.length) return res.status(409).json({ error: 'Username taken' });
+      }
+      const { rows } = await db.query(
+        `INSERT INTO chats (name, type, username, owner_id, description) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [name, type, username || null, userId, description || '']
+      );
+      await db.query('INSERT INTO chat_members (chat_id, user_id, role) VALUES ($1, $2, $3)', [rows[0].id, userId, 'owner']);
+      const chat = rows[0];
+      io.emit('chat:created', { ...chat, member_names: '' });
+      res.json({ chat });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/chats/:id/join', async (req, res) => {
+    const chatId = req.params.id;
+    const { userId } = req.body;
+    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: chat } = await db.query('SELECT id, type FROM chats WHERE id = $1', [chatId]);
+      if (!chat.length) return res.status(404).json({ error: 'Chat not found' });
+      const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (member.length) return res.status(409).json({ error: 'Already a member' });
+      const { rows: banned } = await db.query('SELECT user_id FROM chat_bans WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (banned.length) return res.status(403).json({ error: 'You are banned' });
+      await db.query('INSERT INTO chat_members (chat_id, user_id) VALUES ($1, $2)', [chatId, userId]);
+      const { rows: members } = await db.query(`
+        SELECT u.id, u.nickname, u.username, u.avatar_color, u.avatar_url, u.avatar_version, u.label, cm.role
+        FROM chat_members cm JOIN users u ON cm.user_id = u.id
+        WHERE cm.chat_id = $1
+      `, [chatId]);
+      io.emit('chat:member:joined', { chatId: Number(chatId), userId: Number(userId), members });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/chats/:id/leave', async (req, res) => {
+    const chatId = req.params.id;
+    const { userId } = req.body;
+    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: member } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (!member.length) return res.status(404).json({ error: 'Not a member' });
+      if (member[0].role === 'owner') return res.status(403).json({ error: 'Owner cannot leave; transfer ownership first' });
+      await db.query('DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      io.emit('chat:member:left', { chatId: Number(chatId), userId: Number(userId) });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.put('/api/chats/:id/role', async (req, res) => {
+    const chatId = req.params.id;
+    const { requesterId, targetId, role } = req.body;
+    if (!chatId || !requesterId || !targetId || !role || !['admin', 'member'].includes(role)) return res.status(400).json({ error: 'Invalid params' });
+    try {
+      const { rows: requester } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, requesterId]);
+      if (!requester.length || requester[0].role !== 'owner') return res.status(403).json({ error: 'Only owner can change roles' });
+      const { rows: target } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, targetId]);
+      if (!target.length) return res.status(404).json({ error: 'Target not a member' });
+      if (target[0].role === 'owner') return res.status(403).json({ error: 'Cannot change owner role' });
+      await db.query('UPDATE chat_members SET role = $1 WHERE chat_id = $2 AND user_id = $3', [role, chatId, targetId]);
+      const { rows: members } = await db.query(`
+        SELECT u.id, u.nickname, u.username, u.avatar_color, u.avatar_url, u.avatar_version, u.label, cm.role
+        FROM chat_members cm JOIN users u ON cm.user_id = u.id
+        WHERE cm.chat_id = $1
+      `, [chatId]);
+      io.emit('chat:member:role', { chatId: Number(chatId), targetId: Number(targetId), role, members });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/chats/:id/ban', async (req, res) => {
+    const chatId = req.params.id;
+    const { requesterId, targetId } = req.body;
+    if (!chatId || !requesterId || !targetId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: requester } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, requesterId]);
+      if (!requester.length || (requester[0].role !== 'owner' && requester[0].role !== 'admin')) return res.status(403).json({ error: 'Only owner/admin can ban' });
+      const { rows: target } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, targetId]);
+      if (!target.length) return res.status(404).json({ error: 'Target not a member' });
+      if (target[0].role === 'owner') return res.status(403).json({ error: 'Cannot ban owner' });
+      await db.query('DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, targetId]);
+      await db.query('INSERT INTO chat_bans (chat_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [chatId, targetId]);
+      const { rows: members } = await db.query(`
+        SELECT u.id, u.nickname, u.username, u.avatar_color, u.avatar_url, u.avatar_version, u.label, cm.role
+        FROM chat_members cm JOIN users u ON cm.user_id = u.id
+        WHERE cm.chat_id = $1
+      `, [chatId]);
+      io.emit('chat:member:banned', { chatId: Number(chatId), targetId: Number(targetId), members });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.post('/api/chats/:id/unban', async (req, res) => {
+    const chatId = req.params.id;
+    const { requesterId, targetId } = req.body;
+    if (!chatId || !requesterId || !targetId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: requester } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, requesterId]);
+      if (!requester.length || (requester[0].role !== 'owner' && requester[0].role !== 'admin')) return res.status(403).json({ error: 'Only owner/admin can unban' });
+      await db.query('DELETE FROM chat_bans WHERE chat_id = $1 AND user_id = $2', [chatId, targetId]);
+      io.emit('chat:member:unbanned', { chatId: Number(chatId), targetId: Number(targetId) });
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.get('/api/chats/:id/members', async (req, res) => {
+    const chatId = req.params.id;
+    const { userId } = req.query;
+    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (!member.length) return res.status(403).json({ error: 'Not a member' });
+      const { rows: members } = await db.query(`
+        SELECT u.id, u.nickname, u.username, u.avatar_color, u.avatar_url, u.avatar_version, u.label, cm.role
+        FROM chat_members cm JOIN users u ON cm.user_id = u.id
+        WHERE cm.chat_id = $1
+      `, [chatId]);
+      res.json({ members });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.get('/api/chats/:id/messages', async (req, res) => {
+    const chatId = req.params.id;
+    const userId = req.query.userId;
+    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    try {
+      const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
+      if (!member.length) return res.status(403).json({ error: 'Not a member' });
+      const { rows: messages } = await db.query(`
+        SELECT m.*, u.nickname as sender_name, u.avatar_color as sender_color
+        FROM messages m JOIN users u ON m.sender_id = u.id
+        WHERE m.chat_id = $1 ORDER BY m.created_at DESC LIMIT 100
+      `, [chatId]);
+      const { rows: photos } = await db.query(`
+        SELECT pm.*, u.nickname as sender_name, u.avatar_color as sender_color
+        FROM photo_messages pm JOIN users u ON pm.sender_id = u.id
+        WHERE pm.chat_id = $1 ORDER BY pm.created_at DESC LIMIT 100
+      `, [chatId]);
+      photos.forEach(function(m) { m.type = 'photo'; m.image_url = m.photo_url; });
+      var all = [...messages, ...photos].sort(function(a, b) { return new Date(a.created_at) - new Date(b.created_at); });
+      all.forEach(function(m) { if (m.content) m.content = decryptText(m.content); });
+      res.json({ messages: all });
+    } catch (err) {
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  app.get('/api/chats/search', async (req, res) => {
+    const { q, userId } = req.query;
+    if (!q || !userId) return res.json({ chats: [] });
+    try {
+      const { rows } = await db.query(
+        `SELECT c.id, c.name, c.type, c.username, c.description, c.owner_id
+         FROM chats c
+         WHERE c.type IN ('group', 'channel') AND LOWER(c.username) LIKE LOWER($1)
+         LIMIT 20`,
+        [q + '%']
+      );
+      res.json({ chats: rows });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
     }
@@ -454,12 +666,14 @@ const io = new Server(server, {
       `, [user.id]);
       socket.emit('chats:list', chats);
 
-      // Get regular messages
+      // Get regular messages (private + group/channel)
       const { rows: history } = await db.query(`
         SELECT m.*, u.nickname as sender_name, u.avatar_color as sender_color
         FROM messages m
         JOIN users u ON m.sender_id = u.id
-        WHERE m.sender_id = $1 OR m.receiver_id = $1
+        WHERE m.sender_id = $1 OR m.receiver_id = $1 OR m.chat_id IN (
+          SELECT chat_id FROM chat_members WHERE user_id = $1
+        )
         ORDER BY m.created_at DESC
         LIMIT 100
       `, [currentUser.id]);
@@ -507,6 +721,15 @@ const io = new Server(server, {
 
     socket.on('message:send', async ({ chatId, content, receiverId }) => {
       if (!currentUser || !content.trim()) return;
+      if (chatId) {
+        const { rows: chatInfo } = await db.query('SELECT type FROM chats WHERE id = $1', [chatId]);
+        if (chatInfo.length && chatInfo[0].type === 'channel') {
+          const { rows: member } = await db.query("SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')", [chatId, currentUser.id]);
+          if (!member.length) { socket.emit('error', 'Only admins can post in channels'); return; }
+        }
+        const { rows: banned } = await db.query('SELECT user_id FROM chat_bans WHERE chat_id = $1 AND user_id = $2', [chatId, currentUser.id]);
+        if (banned.length) { socket.emit('error', 'You are banned from this chat'); return; }
+      }
       const enc = encryptText(content.trim());
       const { rows } = await db.query(
         'INSERT INTO messages (sender_id, receiver_id, chat_id, content) VALUES ($1, $2, $3, $4) RETURNING id',
@@ -530,6 +753,15 @@ const io = new Server(server, {
 
     socket.on('photo:send', async ({ chatId, photoUrl, caption }) => {
       if (!currentUser || !photoUrl) return;
+      if (chatId) {
+        const { rows: chatInfo } = await db.query('SELECT type FROM chats WHERE id = $1', [chatId]);
+        if (chatInfo.length && chatInfo[0].type === 'channel') {
+          const { rows: member } = await db.query("SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')", [chatId, currentUser.id]);
+          if (!member.length) { socket.emit('error', 'Only admins can post in channels'); return; }
+        }
+        const { rows: banned } = await db.query('SELECT user_id FROM chat_bans WHERE chat_id = $1 AND user_id = $2', [chatId, currentUser.id]);
+        if (banned.length) { socket.emit('error', 'You are banned from this chat'); return; }
+      }
       try {
         const { rows } = await db.query(
           'INSERT INTO photo_messages (chat_id, sender_id, photo_url, caption) VALUES ($1, $2, $3, $4) RETURNING id, chat_id, sender_id, photo_url, caption, created_at',
