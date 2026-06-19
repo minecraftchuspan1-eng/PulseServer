@@ -445,9 +445,8 @@ function connectSocket() {
     if (chat) chat.avatar_url = avatarUrl;
     if (activeChatObj && Number(activeChatObj.id) === Number(chatId)) {
       activeChatObj.avatar_url = avatarUrl;
-      if (avatarUrl) {
-        var url = avatarUrl;
-        if (url && url.startsWith('/')) url = API + url;
+      var url = resolveAvatarUrl(avatarUrl);
+      if (url) {
         chatAvatar.style.backgroundImage = 'url(' + url + ')';
         chatAvatar.style.backgroundSize = 'cover';
         chatAvatar.style.background = 'transparent';
@@ -645,6 +644,13 @@ function renderRecentUsers(users) {
   });
 }
 
+function resolveAvatarUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('data:')) return url;
+  if (url.startsWith('/')) return API + url;
+  return url;
+}
+
 function renderChats() {
   chatsListDiv.innerHTML = '';
   var groupsAndChannels = myChats.filter(function(c) { return c.type === 'group' || c.type === 'channel'; });
@@ -657,8 +663,7 @@ function renderChats() {
     el.className = 'chat-item' + (Number(activeChatId) === Number(chat.id) ? ' active' : '');
     var icon = document.createElement('div');
     icon.className = 'chat-item-icon ' + (chat.type === 'channel' ? 'channel-icon' : 'group-icon');
-    var cavUrl = chat.avatar_url;
-    if (cavUrl && cavUrl.startsWith('/')) cavUrl = API + cavUrl;
+    var cavUrl = resolveAvatarUrl(chat.avatar_url);
     if (cavUrl) {
       icon.style.backgroundImage = 'url(' + cavUrl + ')';
       icon.style.backgroundSize = 'cover';
@@ -729,8 +734,7 @@ function renderMembersModalBody() {
   avatarRow.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--border-color);margin-bottom:8px';
   var chatAv = document.createElement('div');
   chatAv.className = 'member-avatar';
-  var cavUrl = activeChatObj.avatar_url;
-  if (cavUrl && cavUrl.startsWith('/')) cavUrl = API + cavUrl;
+  var cavUrl = resolveAvatarUrl(activeChatObj.avatar_url);
   if (cavUrl) {
     chatAv.style.backgroundImage = 'url(' + cavUrl + ')';
     chatAv.style.backgroundSize = 'cover';
@@ -875,8 +879,7 @@ function openGroupChat(chat) {
     metaSpan.textContent = '@' + chat.username;
     chatPartnerName.appendChild(metaSpan);
   }
-  var avUrl = chat.avatar_url;
-  if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+  var avUrl = resolveAvatarUrl(chat.avatar_url);
   if (avUrl) {
     chatAvatar.style.backgroundImage = 'url(' + avUrl + ')';
     chatAvatar.style.backgroundSize = 'cover';
@@ -1177,11 +1180,15 @@ profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel
 chatUserMeta.addEventListener('click', openProfileOrMembers);
 chatAvatar.addEventListener('click', function() {
   if (activeChatObj && (activeChatObj.type === 'group' || activeChatObj.type === 'channel')) {
+    if (Number(activeChatObj.owner_id) === Number(currentUser.id)) {
+      chatAvatarInput.click();
+      return;
+    }
     var myRole = 'member';
     activeChatMembers.forEach(function(m) {
       if (Number(m.id) === Number(currentUser.id)) myRole = m.role;
     });
-    if (myRole === 'owner' || myRole === 'admin') {
+    if (myRole === 'admin') {
       chatAvatarInput.click();
       return;
     }
@@ -1210,14 +1217,16 @@ chatAvatarInput.addEventListener('change', function() {
       }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.error) { alert(data.error); return; }
         activeChatObj.avatar_url = data.avatarUrl;
-        var url = data.avatarUrl;
-        if (url && url.startsWith('/')) url = API + url;
-        if (url) {
-          chatAvatar.style.backgroundImage = 'url(' + url + ')';
-          chatAvatar.style.backgroundSize = 'cover';
-          chatAvatar.style.background = 'transparent';
-          chatAvatar.innerHTML = '';
-        }
+        var c = myChats.find(function(x) { return Number(x.id) === Number(activeChatId); });
+        if (c) c.avatar_url = data.avatarUrl;
+        var url = resolveAvatarUrl(data.avatarUrl);
+        chatAvatar.style.backgroundImage = url ? 'url(' + url + ')' : 'none';
+        chatAvatar.style.backgroundSize = 'cover';
+        chatAvatar.style.background = url ? 'transparent' : (activeChatObj.type === 'channel' ? '#f59e0b' : '#10b981');
+        chatAvatar.innerHTML = url ? '' : (activeChatObj.type === 'channel'
+          ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>'
+          : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>');
+        renderChats();
       }).catch(function() { alert('Upload failed'); });
     };
     img.src = e.target.result;
