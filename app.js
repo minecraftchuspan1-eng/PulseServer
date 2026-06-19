@@ -445,12 +445,21 @@ function connectSocket() {
     if (chat) chat.avatar_url = avatarUrl;
     if (activeChatObj && Number(activeChatObj.id) === Number(chatId)) {
       activeChatObj.avatar_url = avatarUrl;
-      var url = avatarUrl;
-      if (url && url.startsWith('/')) url = API + url;
-      if (url) {
+      if (avatarUrl) {
+        var url = avatarUrl;
+        if (url && url.startsWith('/')) url = API + url;
         chatAvatar.style.backgroundImage = 'url(' + url + ')';
         chatAvatar.style.backgroundSize = 'cover';
-        chatAvatar.textContent = '';
+        chatAvatar.style.background = 'transparent';
+        chatAvatar.innerHTML = '';
+      } else {
+        chatAvatar.style.backgroundImage = 'none';
+        chatAvatar.style.background = activeChatObj.type === 'channel' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#10b981,#059669)';
+        if (activeChatObj.type === 'channel') {
+          chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
+        } else {
+          chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+        }
       }
     }
     renderChats();
@@ -571,6 +580,7 @@ function closeChat() {
   pendingPhoto = null;
   photoPendingBar.style.display = 'none';
   messageInput.placeholder = 'Type a message...';
+  showInputArea();
   renderChats();
   profileEyeBtn.style.display = '';
   profileEyeBtn.title = 'View profile';
@@ -647,7 +657,15 @@ function renderChats() {
     el.className = 'chat-item' + (Number(activeChatId) === Number(chat.id) ? ' active' : '');
     var icon = document.createElement('div');
     icon.className = 'chat-item-icon ' + (chat.type === 'channel' ? 'channel-icon' : 'group-icon');
-    if (chat.type === 'channel') {
+    var cavUrl = chat.avatar_url;
+    if (cavUrl && cavUrl.startsWith('/')) cavUrl = API + cavUrl;
+    if (cavUrl) {
+      icon.style.backgroundImage = 'url(' + cavUrl + ')';
+      icon.style.backgroundSize = 'cover';
+      icon.style.backgroundPosition = 'center';
+      icon.style.background = 'transparent';
+      icon.innerHTML = '';
+    } else if (chat.type === 'channel') {
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
     } else {
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
@@ -655,10 +673,17 @@ function renderChats() {
     el.appendChild(icon);
     var info = document.createElement('div');
     info.className = 'chat-item-info';
+    var nameRow = document.createElement('div');
+    nameRow.style.cssText = 'display:flex;align-items:center;gap:4px';
     var nameEl = document.createElement('div');
     nameEl.className = 'chat-item-name';
     nameEl.textContent = chat.name || (chat.type === 'channel' ? 'Channel' : 'Group');
-    info.appendChild(nameEl);
+    nameRow.appendChild(nameEl);
+    if (chat.label) {
+      var labelEl = createLabelHtml(chat.label);
+      if (labelEl) nameRow.appendChild(labelEl);
+    }
+    info.appendChild(nameRow);
     var meta = document.createElement('div');
     meta.className = 'chat-item-meta';
     meta.textContent = chat.username ? '@' + chat.username : (chat.type === 'channel' ? 'Channel' : 'Group');
@@ -700,41 +725,45 @@ function renderMembersModalBody() {
   activeChatMembers.forEach(function(m) {
     if (Number(m.id) === Number(currentUser.id)) myRole = m.role;
   });
-  if (myRole === 'owner' || myRole === 'admin') {
-    var avatarRow = document.createElement('div');
-    avatarRow.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--border-color);margin-bottom:8px';
-    var chatAv = document.createElement('div');
-    chatAv.className = 'member-avatar';
-    var cavUrl = activeChatObj.avatar_url;
-    if (cavUrl && cavUrl.startsWith('/')) cavUrl = API + cavUrl;
-    if (cavUrl) {
-      chatAv.style.backgroundImage = 'url(' + cavUrl + ')';
-      chatAv.style.backgroundSize = 'cover';
-    } else {
-      chatAv.style.background = activeChatObj.type === 'channel' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#10b981,#059669)';
+  var avatarRow = document.createElement('div');
+  avatarRow.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--border-color);margin-bottom:8px';
+  var chatAv = document.createElement('div');
+  chatAv.className = 'member-avatar';
+  var cavUrl = activeChatObj.avatar_url;
+  if (cavUrl && cavUrl.startsWith('/')) cavUrl = API + cavUrl;
+  if (cavUrl) {
+    chatAv.style.backgroundImage = 'url(' + cavUrl + ')';
+    chatAv.style.backgroundSize = 'cover';
+  } else {
+    chatAv.style.background = activeChatObj.type === 'channel' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#10b981,#059669)';
+    if (activeChatObj.type === 'channel') {
       chatAv.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
+    } else {
+      chatAv.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
     }
-    avatarRow.appendChild(chatAv);
-    var infoCol = document.createElement('div');
-    infoCol.style.cssText = 'flex:1';
-    var nameRow = document.createElement('div');
-    nameRow.style.cssText = 'font-size:14px;font-weight:600';
-    nameRow.textContent = activeChatObj.name || 'Channel';
-    infoCol.appendChild(nameRow);
-    if (activeChatObj.username) {
-      var unameRow = document.createElement('div');
-      unameRow.style.cssText = 'font-size:12px;color:var(--text-muted)';
-      unameRow.textContent = '@' + activeChatObj.username;
-      infoCol.appendChild(unameRow);
-    }
-    avatarRow.appendChild(infoCol);
+  }
+  avatarRow.appendChild(chatAv);
+  var infoCol = document.createElement('div');
+  infoCol.style.cssText = 'flex:1';
+  var nameRow = document.createElement('div');
+  nameRow.style.cssText = 'font-size:14px;font-weight:600';
+  nameRow.textContent = activeChatObj.name || (activeChatObj.type === 'channel' ? 'Channel' : 'Group');
+  infoCol.appendChild(nameRow);
+  if (activeChatObj.username) {
+    var unameRow = document.createElement('div');
+    unameRow.style.cssText = 'font-size:12px;color:var(--text-muted)';
+    unameRow.textContent = '@' + activeChatObj.username;
+    infoCol.appendChild(unameRow);
+  }
+  avatarRow.appendChild(infoCol);
+  if (myRole === 'owner' || myRole === 'admin') {
     var changeBtn = document.createElement('button');
     changeBtn.className = 'member-action-btn';
     changeBtn.textContent = 'Change photo';
     changeBtn.addEventListener('click', function() { chatAvatarInput.click(); });
     avatarRow.appendChild(changeBtn);
-    membersBody.appendChild(avatarRow);
   }
+  membersBody.appendChild(avatarRow);
   activeChatMembers.forEach(function(m) {
     var item = document.createElement('div');
     item.className = 'member-item';
@@ -836,6 +865,10 @@ function openGroupChat(chat) {
   nameSpan.textContent = chat.name || (chat.type === 'channel' ? 'Channel' : 'Group');
   nameSpan.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
   chatPartnerName.appendChild(nameSpan);
+  if (chat.label) {
+    var labelEl = createLabelHtml(chat.label);
+    if (labelEl) chatPartnerName.appendChild(labelEl);
+  }
   if (chat.username) {
     var metaSpan = document.createElement('span');
     metaSpan.style.cssText = 'font-size:11px;color:var(--text-muted);margin-left:6px';
@@ -1614,6 +1647,7 @@ function startChat(user) {
   profileEyeBtn.style.display = '';
   profileEyeBtn.title = 'View profile';
   profileEyeBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  showInputArea();
   chatPlaceholder.style.display = 'none';
   chatActive.style.display = 'flex';
   chatPartnerName.innerHTML = '';

@@ -1875,3 +1875,20 @@ body {
   padding: 8px 12px;
 }
 
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+  }
+  .sidebar.mobile-hidden {
+    display: none;
+  }
+  .members-content,
+  .create-chat-content,
+  .admin-content {
+    max-width: 100%;
+    margin: 0 10px;
+    max-height: 90vh;
+  }
+}
+
