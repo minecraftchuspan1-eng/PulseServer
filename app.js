@@ -102,55 +102,22 @@ const adminClose = $('admin-close');
 const adminBody = $('admin-body');
 
 const photoUploadBtn = $('photo-upload-btn');
-const photoUploadModal = $('photo-upload-modal');
 const photoUploadFile = $('photo-upload-file');
-const photoUploadClose = $('photo-upload-close');
-const photoUploadCancel = $('photo-upload-cancel');
-const photoUploadConfirm = $('photo-upload-confirm');
-const photoPreviewImg = $('photo-preview-img');
-const photoPreviewPlaceholder = document.querySelector('.photo-preview-placeholder');
-const photoCaption = $('photo-caption');
 
 photoUploadBtn.addEventListener('click', () => {
-  photoUploadModal.style.display = 'flex';
+  if (!activeChatId) { alert('Select a chat first'); return; }
   photoUploadFile.click();
 });
 
-photoUploadClose.addEventListener('click', hidePhotoUploadModal);
-photoUploadCancel.addEventListener('click', hidePhotoUploadModal);
-
-document.querySelector('.photo-upload-backdrop').addEventListener('click', hidePhotoUploadModal);
-
-photoUploadFile.addEventListener('change', function() {
+photoUploadFile.addEventListener('change', async function() {
   const file = this.files[0];
   if (!file) return;
-  if (file.size > 2 * 1024 * 1024) {
-    alert('Max 2MB');
+  if (file.size > 5 * 1024 * 1024) {
+    alert('Max 5MB');
+    this.value = '';
     return;
   }
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    photoPreviewImg.src = e.target.result;
-    photoPreviewImg.style.display = 'block';
-    photoPreviewPlaceholder.style.display = 'none';
-    photoCaption.value = '';
-  };
-  reader.readAsDataURL(file);
-});
-
-function hidePhotoUploadModal() {
-  photoUploadModal.style.display = 'none';
-  photoPreviewImg.src = '';
-  photoPreviewImg.style.display = 'none';
-  photoPreviewPlaceholder.style.display = 'flex';
-  photoCaption.value = '';
-  if (photoUploadFile) photoUploadFile.value = '';
-}
-
-photoUploadConfirm.addEventListener('click', async () => {
-  const file = photoUploadFile.files[0];
-  if (!file) return;
-  const caption = photoCaption.value.trim();
+  const caption = prompt('Caption (optional):') || '';
   const reader = new FileReader();
   reader.onload = async function(e) {
     const base64Data = e.target.result;
@@ -165,9 +132,7 @@ photoUploadConfirm.addEventListener('click', async () => {
           caption: caption
         })
       });
-      if (res.ok) {
-        hidePhotoUploadModal();
-      } else {
+      if (!res.ok) {
         const data = await res.json();
         alert(data.error || 'Upload failed');
       }
@@ -176,6 +141,7 @@ photoUploadConfirm.addEventListener('click', async () => {
     }
   };
   reader.readAsDataURL(file);
+  this.value = '';
 });
 
 let auth, googleProvider;
