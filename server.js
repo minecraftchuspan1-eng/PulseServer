@@ -471,6 +471,9 @@ const io = new Server(server, {
       );
       await db.query('INSERT INTO chat_members (chat_id, user_id, role) VALUES ($1, $2, $3)', [rows[0].id, userId, 'owner']);
       const chat = rows[0];
+      if (chat.avatar_url && chat.avatar_url.startsWith('data:')) {
+        chat.avatar_url = '/api/chat-avatar/' + chat.id + '?v=' + (chat.avatar_version || 0);
+      }
       io.emit('chat:created', { ...chat, member_names: '' });
       res.json({ chat });
     } catch (err) {
@@ -680,12 +683,17 @@ const io = new Server(server, {
     if (!q || !userId) return res.json({ chats: [] });
     try {
       const { rows } = await db.query(
-        `SELECT c.id, c.name, c.type, c.username, c.description, c.owner_id
+        `SELECT c.id, c.name, c.type, c.username, c.description, c.owner_id, c.avatar_url, c.avatar_version, c.label
          FROM chats c
          WHERE c.type IN ('group', 'channel') AND LOWER(c.username) LIKE LOWER($1)
          LIMIT 20`,
         [q + '%']
       );
+      rows.forEach(function(c) {
+        if (c.avatar_url && c.avatar_url.startsWith('data:')) {
+          c.avatar_url = '/api/chat-avatar/' + c.id + '?v=' + (c.avatar_version || 0);
+        }
+      });
       res.json({ chats: rows });
     } catch (err) {
       res.status(500).json({ error: 'Server error' });
@@ -715,6 +723,11 @@ const io = new Server(server, {
         WHERE cm.chat_id IN (SELECT chat_id FROM chat_members WHERE user_id = $1)
         GROUP BY c.id
       `, [user.id]);
+      chats.forEach(function(c) {
+        if (c.avatar_url && c.avatar_url.startsWith('data:')) {
+          c.avatar_url = '/api/chat-avatar/' + c.id + '?v=' + (c.avatar_version || 0);
+        }
+      });
       socket.emit('chats:list', chats);
 
       // Get regular messages (private + group/channel)
