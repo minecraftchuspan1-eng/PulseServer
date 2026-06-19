@@ -400,7 +400,7 @@ function connectSocket() {
   });
 
   socket.on('chat:member:joined', ({ chatId, userId, members }) => {
-    if (activeChatId === chatId) activeChatMembers = members || [];
+    if (activeChatId === chatId) { activeChatMembers = members || []; updateInputVisibility(); }
     if (userId === currentUser.id) {
       fetch(API + '/api/chats/search?q=&userId=' + currentUser.id + '&_t=' + Date.now()).catch(function(){});
     }
@@ -420,7 +420,7 @@ function connectSocket() {
   });
 
   socket.on('chat:member:banned', ({ chatId, targetId, members }) => {
-    if (Number(activeChatId) === Number(chatId)) activeChatMembers = members || [];
+    if (Number(activeChatId) === Number(chatId)) { activeChatMembers = members || []; updateInputVisibility(); }
     renderMembersModal();
     if (targetId === currentUser.id) {
       myChats = myChats.filter(function(c) { return Number(c.id) !== Number(chatId); });
@@ -457,7 +457,7 @@ function connectSocket() {
   });
 
   socket.on('chat:member:role', ({ chatId, targetId, role, members }) => {
-    if (Number(activeChatId) === Number(chatId)) activeChatMembers = members || [];
+    if (Number(activeChatId) === Number(chatId)) { activeChatMembers = members || []; updateInputVisibility(); }
     renderMembersModal();
   });
 
@@ -675,6 +675,7 @@ function loadMembers(chatId) {
     .then(function(data) {
       activeChatMembers = data.members || [];
       updateChatHeader();
+      updateInputVisibility();
       if (membersModal.style.display === 'flex') renderMembersModalBody();
     })
     .catch(function() {});
@@ -699,6 +700,41 @@ function renderMembersModalBody() {
   activeChatMembers.forEach(function(m) {
     if (Number(m.id) === Number(currentUser.id)) myRole = m.role;
   });
+  if (myRole === 'owner' || myRole === 'admin') {
+    var avatarRow = document.createElement('div');
+    avatarRow.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--border-color);margin-bottom:8px';
+    var chatAv = document.createElement('div');
+    chatAv.className = 'member-avatar';
+    var cavUrl = activeChatObj.avatar_url;
+    if (cavUrl && cavUrl.startsWith('/')) cavUrl = API + cavUrl;
+    if (cavUrl) {
+      chatAv.style.backgroundImage = 'url(' + cavUrl + ')';
+      chatAv.style.backgroundSize = 'cover';
+    } else {
+      chatAv.style.background = activeChatObj.type === 'channel' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'linear-gradient(135deg,#10b981,#059669)';
+      chatAv.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
+    }
+    avatarRow.appendChild(chatAv);
+    var infoCol = document.createElement('div');
+    infoCol.style.cssText = 'flex:1';
+    var nameRow = document.createElement('div');
+    nameRow.style.cssText = 'font-size:14px;font-weight:600';
+    nameRow.textContent = activeChatObj.name || 'Channel';
+    infoCol.appendChild(nameRow);
+    if (activeChatObj.username) {
+      var unameRow = document.createElement('div');
+      unameRow.style.cssText = 'font-size:12px;color:var(--text-muted)';
+      unameRow.textContent = '@' + activeChatObj.username;
+      infoCol.appendChild(unameRow);
+    }
+    avatarRow.appendChild(infoCol);
+    var changeBtn = document.createElement('button');
+    changeBtn.className = 'member-action-btn';
+    changeBtn.textContent = 'Change photo';
+    changeBtn.addEventListener('click', function() { chatAvatarInput.click(); });
+    avatarRow.appendChild(changeBtn);
+    membersBody.appendChild(avatarRow);
+  }
   activeChatMembers.forEach(function(m) {
     var item = document.createElement('div');
     item.className = 'member-item';
@@ -732,6 +768,10 @@ function renderMembersModalBody() {
       nameEl.appendChild(s);
     }
     info.appendChild(nameEl);
+    var usernameRow = document.createElement('div');
+    usernameRow.style.cssText = 'font-size:11px;color:var(--text-muted)';
+    usernameRow.textContent = '@' + m.username;
+    info.appendChild(usernameRow);
     var roleEl = document.createElement('div');
     roleEl.className = 'member-role' + (m.role === 'owner' ? ' owner' : m.role === 'admin' ? ' admin' : '');
     roleEl.textContent = m.role;
@@ -828,20 +868,65 @@ function openGroupChat(chat) {
   }
   showChat();
   loadMembers(chat.id);
-  if (Number(chat.owner_id) === Number(currentUser.id)) {
+  var isOwner = Number(chat.owner_id) === Number(currentUser.id);
+  if (isOwner) {
     chatDeleteBtn.style.display = '';
+    chatDeleteBtn.title = 'Delete chat';
+    chatDeleteBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
     chatDeleteBtn.onclick = function() {
       showConfirm('Delete ' + (chat.name || 'this chat') + '?', function() {
         fetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' }).catch(function(){});
       });
     };
   } else {
-    chatDeleteBtn.style.display = 'none';
+    chatDeleteBtn.style.display = '';
+    chatDeleteBtn.title = 'Leave chat';
+    chatDeleteBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+    chatDeleteBtn.onclick = function() {
+      showConfirm('Leave ' + (chat.name || 'this chat') + '?', function() {
+        fetch(API + '/api/chats/' + activeChatId + '/leave', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+          if (data.error) { alert(data.error); return; }
+        }).catch(function(){});
+      });
+    };
   }
   profileEyeBtn.title = 'Members';
   profileEyeBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
   profileEyeBtn.style.display = '';
+  updateInputVisibility();
   renderChats();
+}
+
+function updateInputVisibility() {
+  if (!activeChatObj) return;
+  var isChannel = activeChatObj.type === 'channel';
+  if (!isChannel) { showInputArea(); return; }
+  var myRole = 'member';
+  activeChatMembers.forEach(function(m) {
+    if (Number(m.id) === Number(currentUser.id)) myRole = m.role;
+  });
+  if (myRole === 'owner' || myRole === 'admin') {
+    showInputArea();
+  } else {
+    hideInputArea();
+  }
+}
+
+function showInputArea() {
+  var area = document.querySelector('.message-input-area');
+  if (area) area.style.display = '';
+  var typing = document.getElementById('typing-indicator');
+  if (typing) typing.style.display = 'none';
+}
+
+function hideInputArea() {
+  var area = document.querySelector('.message-input-area');
+  if (area) area.style.display = 'none';
+  var typing = document.getElementById('typing-indicator');
+  if (typing) typing.style.display = 'none';
 }
 
 function openMembersModal() {
