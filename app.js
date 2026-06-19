@@ -449,7 +449,7 @@ function connectSocket() {
       if (url) {
         chatAvatar.style.backgroundImage = 'url(' + url + ')';
         chatAvatar.style.backgroundSize = 'cover';
-        chatAvatar.style.background = 'transparent';
+        chatAvatar.style.backgroundColor = 'transparent';
         chatAvatar.innerHTML = '';
       } else {
         chatAvatar.style.backgroundImage = 'none';
@@ -668,7 +668,7 @@ function renderChats() {
       icon.style.backgroundImage = 'url(' + cavUrl + ')';
       icon.style.backgroundSize = 'cover';
       icon.style.backgroundPosition = 'center';
-      icon.style.background = 'transparent';
+      icon.style.backgroundColor = 'transparent';
       icon.innerHTML = '';
     } else if (chat.type === 'channel') {
       icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
@@ -773,13 +773,12 @@ function renderMembersModalBody() {
     item.className = 'member-item';
     var av = document.createElement('div');
     av.className = 'member-avatar';
-    var avUrl = m.avatar_url;
-    if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
+    var avUrl = resolveAvatarUrl(m.avatar_url);
     if (avUrl) {
       av.style.backgroundImage = 'url(' + avUrl + ')';
       av.style.backgroundSize = 'cover';
     } else {
-      av.style.background = m.avatar_color;
+      av.style.backgroundColor = m.avatar_color;
       av.textContent = m.nickname[0].toUpperCase();
     }
     item.appendChild(av);
@@ -883,11 +882,10 @@ function openGroupChat(chat) {
   if (avUrl) {
     chatAvatar.style.backgroundImage = 'url(' + avUrl + ')';
     chatAvatar.style.backgroundSize = 'cover';
-    chatAvatar.style.background = 'transparent';
+    chatAvatar.style.backgroundColor = 'transparent';
     chatAvatar.innerHTML = '';
   } else {
     chatAvatar.style.background = chat.type === 'channel' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #10b981, #059669)';
-    chatAvatar.style.backgroundImage = 'none';
     if (chat.type === 'channel') {
       chatAvatar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>';
     } else {
@@ -1222,7 +1220,7 @@ chatAvatarInput.addEventListener('change', function() {
         var url = resolveAvatarUrl(data.avatarUrl);
         chatAvatar.style.backgroundImage = url ? 'url(' + url + ')' : 'none';
         chatAvatar.style.backgroundSize = 'cover';
-        chatAvatar.style.background = url ? 'transparent' : (activeChatObj.type === 'channel' ? '#f59e0b' : '#10b981');
+        chatAvatar.style.backgroundColor = url ? 'transparent' : (activeChatObj.type === 'channel' ? '#f59e0b' : '#10b981');
         chatAvatar.innerHTML = url ? '' : (activeChatObj.type === 'channel'
           ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 8 14 13 2 18 6 17 11 21 18 13 22 12 18 11 11 5"/></svg>'
           : '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>');
@@ -1666,7 +1664,7 @@ function startChat(user) {
   chatPartnerName.appendChild(nameSpan);
   var labelEl = createLabelHtml(user.label);
   if (labelEl) chatPartnerName.appendChild(labelEl);
-  chatAvatar.style.background = user.avatar_color;
+  chatAvatar.style.backgroundColor = user.avatar_color;
   chatAvatar.textContent = user.nickname[0].toUpperCase();
   var avUrl = user.avatar_url;
   if (avUrl && avUrl.startsWith('/')) avUrl = API + avUrl;
@@ -1676,7 +1674,7 @@ function startChat(user) {
     chatAvatar.textContent = '';
   } else {
     chatAvatar.style.backgroundImage = '';
-    chatAvatar.style.background = user.avatar_color;
+    chatAvatar.style.backgroundColor = user.avatar_color;
     chatAvatar.textContent = user.nickname[0].toUpperCase();
   }
   if (typingIndicator) typingIndicator.style.display = 'none';
