@@ -12,6 +12,7 @@ const BOT_UID = 'bot_pulsechatbot';
 const BOT_COLOR = '#6366f1';
 
 const ADMIN_USERNAMES = ['teardown777', 'pulse', 'minecraftch'];
+const ADMIN_EMAILS = ['minecraftchuspan1@gmail.com', 'artemiiest@gmail.com'];
 
 const GIGACHAT_AUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
 const GIGACHAT_API_URL = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
@@ -187,8 +188,11 @@ const io = new Server(server, {
   function isAdmin(userId) {
     return new Promise(async (resolve) => {
       try {
-        const { rows } = await db.query('SELECT LOWER(username) as uname FROM users WHERE id = $1', [userId]);
-        resolve(rows.length && ADMIN_USERNAMES.includes(rows[0].uname));
+        const { rows } = await db.query('SELECT LOWER(username) as uname, email FROM users WHERE id = $1', [userId]);
+        if (!rows.length) return resolve(false);
+        if (ADMIN_USERNAMES.includes(rows[0].uname)) return resolve(true);
+        if (rows[0].email && ADMIN_EMAILS.includes(rows[0].email.toLowerCase())) return resolve(true);
+        resolve(false);
       } catch { resolve(false); }
     });
   }

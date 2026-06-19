@@ -794,10 +794,18 @@ if (savedTheme) {
 }
 
 var ADMIN_USERNAMES = ['teardown777', 'pulse', 'minecraftch'];
+var ADMIN_EMAILS = ['minecraftchuspan1@gmail.com', 'artemiiest@gmail.com'];
+
+function isAdminUser() {
+  if (!currentUser) return false;
+  if (currentUser.username && ADMIN_USERNAMES.indexOf(currentUser.username.toLowerCase()) !== -1) return true;
+  if (currentUser.email && ADMIN_EMAILS.indexOf(currentUser.email.toLowerCase()) !== -1) return true;
+  return false;
+}
 
 function updateAdminBtn() {
   if (!adminBtn) return;
-  if (currentUser && currentUser.username && ADMIN_USERNAMES.indexOf(currentUser.username.toLowerCase()) !== -1) {
+  if (isAdminUser()) {
     adminBtn.classList.remove('hidden');
   } else {
     adminBtn.classList.add('hidden');
@@ -805,15 +813,14 @@ function updateAdminBtn() {
 }
 
 setTimeout(function retryAdmin() {
-  if (adminBtn && currentUser && currentUser.username && ADMIN_USERNAMES.indexOf(currentUser.username.toLowerCase()) !== -1) {
+  if (adminBtn && isAdminUser()) {
     adminBtn.classList.remove('hidden');
   }
 }, 3000);
 
 adminBtn.addEventListener('click', function() {
   settingsPanel.classList.add('hidden');
-  // Double check admin rights on click
-  if (currentUser && currentUser.username && ADMIN_USERNAMES.indexOf(currentUser.username.toLowerCase()) !== -1) {
+  if (isAdminUser()) {
     openAdminPanel();
   }
 });
