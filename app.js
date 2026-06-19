@@ -7,6 +7,7 @@ let allMessages = [];
 let allUsers = [];
 let onlineUsersList = [];
 let unreadCounts = {};
+let pendingPhoto = null;
 
 const API = 'https://messenger-server-vwkj-production.up.railway.app';
 const $ = id => document.getElementById(id);
@@ -103,13 +104,15 @@ const adminBody = $('admin-body');
 
 const photoUploadBtn = $('photo-upload-btn');
 const photoUploadFile = $('photo-upload-file');
+const photoPendingBar = $('photo-pending-bar');
+const photoPendingCancel = $('photo-pending-cancel');
 
 photoUploadBtn.addEventListener('click', () => {
   if (!activeChatId) { alert('Select a chat first'); return; }
   photoUploadFile.click();
 });
 
-photoUploadFile.addEventListener('change', async function() {
+photoUploadFile.addEventListener('change', function() {
   const file = this.files[0];
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) {
@@ -117,31 +120,21 @@ photoUploadFile.addEventListener('change', async function() {
     this.value = '';
     return;
   }
-  const caption = prompt('Caption (optional):') || '';
   const reader = new FileReader();
-  reader.onload = async function(e) {
-    const base64Data = e.target.result;
-    try {
-      const res = await fetch(API + '/api/messages/photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser.id,
-          chatId: activeChatId,
-          imageData: base64Data,
-          caption: caption
-        })
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || 'Upload failed');
-      }
-    } catch (err) {
-      alert('Connection error');
-    }
+  reader.onload = function(e) {
+    pendingPhoto = e.target.result;
+    photoPendingBar.style.display = 'flex';
+    messageInput.placeholder = 'Add caption (optional)...';
+    messageInput.focus();
   };
   reader.readAsDataURL(file);
   this.value = '';
+});
+
+photoPendingCancel.addEventListener('click', function() {
+  pendingPhoto = null;
+  photoPendingBar.style.display = 'none';
+  messageInput.placeholder = 'Type a message...';
 });
 
 let auth, googleProvider;
@@ -430,6 +423,9 @@ function closeChat() {
   chatActive.style.display = 'none';
   chatPlaceholder.style.display = 'flex';
   showSidebar();
+  pendingPhoto = null;
+  photoPendingBar.style.display = 'none';
+  messageInput.placeholder = 'Type a message...';
 }
 
 function showSidebar() {
@@ -986,8 +982,30 @@ sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
 function sendMessage() {
+  if (!activeChatId || !socket || !socket.connected) return;
+  if (pendingPhoto) {
+    const caption = messageInput.value.trim();
+    messageInput.value = '';
+    emitTypingStop();
+    fetch(API + '/api/messages/photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUser.id,
+        chatId: activeChatId,
+        imageData: pendingPhoto,
+        caption: caption
+      })
+    }).then(function(res) {
+      if (!res.ok) res.json().then(function(d) { alert(d.error || 'Upload failed'); });
+    }).catch(function() { alert('Connection error'); });
+    pendingPhoto = null;
+    photoPendingBar.style.display = 'none';
+    messageInput.placeholder = 'Type a message...';
+    return;
+  }
   const content = messageInput.value.trim();
-  if (!content || !activeChatId || !socket || !socket.connected) return;
+  if (!content) return;
   socket.emit('message:send', { chatId: activeChatId, content, receiverId: activeUserId });
   messageInput.value = '';
   emitTypingStop();

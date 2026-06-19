@@ -1442,3 +1442,32 @@ body {
   stroke: white;
 }
 
+.photo-pending-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.photo-pending-bar span {
+  flex: 1;
+}
+
+.photo-pending-cancel {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.photo-pending-cancel:hover {
+  background: var(--bg-hover);
+}
+
