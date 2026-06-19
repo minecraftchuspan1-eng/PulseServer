@@ -99,6 +99,7 @@ const themeOptions = document.querySelectorAll('.theme-option');
 const adminBtn = $('admin-btn');
 const adminPanel = $('admin-panel');
 const adminClose = $('admin-close');
+const adminBody = $('admin-body');
 
 const photoUploadBtn = $('photo-upload-btn');
 const photoUploadModal = $('photo-upload-modal');
