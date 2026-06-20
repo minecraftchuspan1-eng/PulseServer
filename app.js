@@ -4,6 +4,7 @@ let activeChatId = null;
 let activeUserId = null;
 let activeUserObj = null;
 let allMessages = [];
+const seenMsgIds = new Set();
 let allUsers = [];
 let onlineUsersList = [];
 let unreadCounts = {};
@@ -13,6 +14,48 @@ let activeChatObj = null;
 
 const API = 'https://messenger-server-vwkj-production.up.railway.app';
 const $ = id => document.getElementById(id);
+
+// Escape user-controlled text before injecting into innerHTML (prevents stored XSS)
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Only allow image URLs we trust as the <img src>; reject javascript:, data:text/html, etc.
+function safeImageUrl(u) {
+  u = String(u || '').trim();
+  if (/^https?:\/\//i.test(u)) return u;            // remote http(s) image
+  if (/^\/[^/]/.test(u)) return u;                  // same-origin path like /api/...
+  if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(u)) return u; // inline image data
+  return '';                                        // anything else -> blocked
+}
+
+// Play an exit animation on an overlay, then hide it once the animation ends.
+// mode: 'display' -> sets style.display='none'; 'hidden' -> adds .hidden class.
+function closeOverlay(overlay, mode) {
+  if (!overlay || overlay.dataset.closing === '1') return;
+  overlay.dataset.closing = '1';
+  overlay.classList.add('closing');
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    if (overlay.dataset.closing !== '1') return; // reopened mid-animation -> don't hide
+    overlay.classList.remove('closing');
+    overlay.dataset.closing = '';
+    if (mode === 'hidden') overlay.classList.add('hidden');
+    else overlay.style.display = 'none';
+  };
+  const content = overlay.querySelector(
+    '.settings-content,.profile-content,.admin-content,.create-chat-content,.members-content,.confirm-box'
+  );
+  if (content) content.addEventListener('animationend', finish, { once: true });
+  setTimeout(finish, 300); // fallback if animationend doesn't fire
+}
 
 function createAvatarHtml(u) {
   var div = document.createElement('div');
@@ -186,14 +229,16 @@ let confirmCallback = null;
 function showConfirm(text, callback) {
   confirmText.textContent = text;
   confirmCallback = callback;
+  confirmModal.classList.remove('closing');
+  confirmModal.dataset.closing = '';
   confirmModal.style.display = 'flex';
 }
 
 function hideConfirm() {
-  confirmModal.style.display = 'none';
   confirmCallback = null;
   confirmOkBtn.style.display = '';
   confirmCancel.textContent = 'Cancel';
+  closeOverlay(confirmModal, 'display');
 }
 
 function confirmOk() {
@@ -352,6 +397,8 @@ function connectSocket() {
 
   socket.on('messages:history', (messages) => {
     allMessages = messages;
+    // mark history as already seen so it doesn't replay the entrance animation
+    messages.forEach(m => seenMsgIds.add(m.id));
     if (activeChatId) renderMessages();
     loadRecentUsers();
   });
@@ -588,8 +635,17 @@ function closeChat() {
 
 function showSidebar() {
   sidebar.classList.remove('mobile-hidden');
-  chatArea.style.display = '';
-  chatArea.classList.remove('mobile-chat-open');
+  const onMobile = window.matchMedia('(max-width: 768px)').matches;
+  if (onMobile && chatArea.classList.contains('mobile-chat-open')) {
+    chatArea.classList.add('mobile-closing');
+    setTimeout(() => {
+      chatArea.classList.remove('mobile-chat-open', 'mobile-closing');
+      chatArea.style.display = '';
+    }, 240);
+  } else {
+    chatArea.style.display = '';
+    chatArea.classList.remove('mobile-chat-open');
+  }
 }
 
 function showChat() {
@@ -1172,8 +1228,8 @@ function openProfile() {
   profilePanel.style.setProperty('display', 'flex', 'important');
 }
 
-profileClose.onclick = function() { profilePanel.style.display = 'none'; };
-profilePanel.onclick = function(e) { if (e.target === profilePanel) profilePanel.style.display = 'none'; };
+profileClose.onclick = function() { closeOverlay(profilePanel, 'display'); };
+profilePanel.onclick = function(e) { if (e.target === profilePanel) closeOverlay(profilePanel, 'display'); };
 
 chatUserMeta.addEventListener('click', openProfileOrMembers);
 chatAvatar.addEventListener('click', function() {
@@ -1262,12 +1318,12 @@ settingsBtn.addEventListener('click', () => {
 });
 
 settingsClose.addEventListener('click', () => {
-  settingsPanel.classList.add('hidden');
+  closeOverlay(settingsPanel, 'hidden');
   usernameError.textContent = '';
 });
 
 settingsPanel.addEventListener('click', (e) => {
-  if (e.target === settingsPanel) { settingsPanel.classList.add('hidden'); usernameError.textContent = ''; }
+  if (e.target === settingsPanel) { closeOverlay(settingsPanel, 'hidden'); usernameError.textContent = ''; }
 });
 
 usernameBtn.addEventListener('click', async () => {
@@ -1431,8 +1487,8 @@ adminBtn.addEventListener('click', function() {
   }
 });
 
-adminClose.addEventListener('click', function() { adminPanel.style.display = 'none'; });
-adminPanel.addEventListener('click', function(e) { if (e.target === adminPanel) adminPanel.style.display = 'none'; });
+adminClose.addEventListener('click', function() { closeOverlay(adminPanel, 'display'); });
+adminPanel.addEventListener('click', function(e) { if (e.target === adminPanel) closeOverlay(adminPanel, 'display'); });
 
 createChatBtn.addEventListener('click', function() {
   settingsPanel.classList.add('hidden');
@@ -1447,11 +1503,11 @@ createChatBtn.addEventListener('click', function() {
   createTypeChannel.classList.remove('active');
 });
 
-createChatClose.addEventListener('click', function() { createChatModal.style.display = 'none'; });
-createChatModal.addEventListener('click', function(e) { if (e.target === createChatModal) createChatModal.style.display = 'none'; });
+createChatClose.addEventListener('click', function() { closeOverlay(createChatModal, 'display'); });
+createChatModal.addEventListener('click', function(e) { if (e.target === createChatModal) closeOverlay(createChatModal, 'display'); });
 
-membersClose.addEventListener('click', function() { membersModal.style.display = 'none'; });
-membersModal.addEventListener('click', function(e) { if (e.target === membersModal) membersModal.style.display = 'none'; });
+membersClose.addEventListener('click', function() { closeOverlay(membersModal, 'display'); });
+membersModal.addEventListener('click', function(e) { if (e.target === membersModal) closeOverlay(membersModal, 'display'); });
 
 createTypeGroup.addEventListener('click', function() {
   createType = 'group';
@@ -1714,27 +1770,32 @@ function renderMessages() {
       const isOwn = m.sender_id === currentUser.id;
       const div = document.createElement('div');
       div.className = `message ${isOwn ? 'own' : 'other'}`;
+      if (!seenMsgIds.has(m.id)) {
+        div.classList.add('msg-in');
+        seenMsgIds.add(m.id);
+      }
       const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       var isGroup = activeChatObj && (activeChatObj.type === 'group' || activeChatObj.type === 'channel');
       var showSender = !isOwn || isGroup;
       let contentHtml = '';
       if (m.type === 'photo') {
+        const imgSrc = safeImageUrl(m.image_url);
         contentHtml = `
           <div class="photo-message">
-            <img src="${m.image_url}" class="photo-img" alt="Photo">
-            ${m.caption ? `<div class="photo-caption">${m.caption}</div>` : ''}
+            ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" class="photo-img" alt="Photo">` : ''}
+            ${m.caption ? `<div class="photo-caption">${escapeHtml(m.caption)}</div>` : ''}
           </div>
         `;
       } else {
-        contentHtml = m.content;
+        contentHtml = escapeHtml(m.content);
       }
 
       div.innerHTML = `
-        ${showSender ? `<div class="msg-sender">${m.sender_name}</div>` : ''}
+        ${showSender ? `<div class="msg-sender">${escapeHtml(m.sender_name)}</div>` : ''}
         ${contentHtml}
-        <div class="msg-time">${time}</div>
-        ${isOwn ? `<button class="msg-delete" data-id="${m.id}">✕</button>` : ''}
+        <div class="msg-time">${escapeHtml(time)}</div>
+        ${isOwn ? `<button class="msg-delete" data-id="${escapeHtml(m.id)}">✕</button>` : ''}
       `;
       const delBtn = div.querySelector('.msg-delete');
       if (delBtn) {

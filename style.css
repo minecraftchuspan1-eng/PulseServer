@@ -40,6 +40,10 @@
 }
 
 * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -48,6 +52,8 @@ body {
   color: var(--text-primary);
   height: 100dvh;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #auth-screen {
@@ -1429,8 +1435,7 @@ body {
   border-color: #ef4444;
   color: #ef4444;
 }
-*   {   b o x - s i z i n g :   b o r d e r - b o x ;   }  
- 
+
 
 .photo-message {
   width: 100%;
@@ -1889,6 +1894,450 @@ body {
     max-width: 100%;
     margin: 0 10px;
     max-height: 90vh;
+  }
+}
+
+/* ============================================================
+   ANIMATIONS & MICRO-INTERACTIONS
+   ============================================================ */
+
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ---- Keyframes ---- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.92) translateY(12px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes msgInRight {
+  0%   { opacity: 0; transform: translateY(10px) translateX(8px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
+}
+
+@keyframes msgInLeft {
+  0%   { opacity: 0; transform: translateY(10px) translateX(-8px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
+}
+
+@keyframes badgePop {
+  0%   { transform: translateY(-50%) scale(0); }
+  60%  { transform: translateY(-50%) scale(1.25); }
+  100% { transform: translateY(-50%) scale(1); }
+}
+
+@keyframes dotPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+  70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes shimmer {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
+}
+
+/* ---- Auth screen ---- */
+#auth-screen {
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1a2e 50%, #16213e 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 14s var(--ease-in-out) infinite;
+}
+
+.auth-box {
+  animation: popIn 0.55s var(--ease-spring) both;
+}
+
+.auth-logo {
+  animation: slideUp 0.6s var(--ease-out) both;
+}
+
+.auth-subtitle {
+  animation: slideUp 0.6s var(--ease-out) 0.08s both;
+}
+
+.google-btn {
+  animation: slideUp 0.6s var(--ease-out) 0.16s both;
+  transition: background 0.2s, transform 0.15s var(--ease-out), box-shadow 0.2s;
+}
+
+.google-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
+
+.google-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ---- Interactive buttons (global press feel) ---- */
+button {
+  transition: transform 0.12s var(--ease-out), background 0.18s, opacity 0.18s, box-shadow 0.18s;
+}
+
+#settings-btn:hover,
+#create-chat-close:hover,
+#members-close:hover,
+#admin-close:hover,
+#settings-close:hover {
+  transform: rotate(8deg) scale(1.05);
+}
+
+#settings-btn svg {
+  transition: transform 0.4s var(--ease-out);
+}
+
+#settings-btn:hover svg {
+  transform: rotate(90deg);
+}
+
+.create-chat-btn:hover {
+  transform: scale(1.15) rotate(90deg);
+}
+
+#send-btn,
+.create-chat-submit,
+.change-row button,
+.avatar-upload-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+#send-btn:hover,
+.create-chat-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(99,102,241,0.4);
+}
+
+#send-btn:active,
+.create-chat-submit:active,
+.change-row button:active {
+  transform: scale(0.96);
+}
+
+/* Shimmer sweep on primary gradient buttons */
+#send-btn::after,
+.create-chat-submit::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.25), transparent);
+  transform: translateX(-150%);
+  pointer-events: none;
+}
+
+#send-btn:hover::after,
+.create-chat-submit:hover::after {
+  animation: shimmer 0.9s var(--ease-out);
+}
+
+/* ---- Sidebar list items ---- */
+.user-item,
+.chat-item,
+.search-results .user-item {
+  transition: background 0.18s, transform 0.16s var(--ease-out);
+}
+
+.user-item:hover,
+.chat-item:hover {
+  transform: translateX(4px);
+}
+
+.user-item:active,
+.chat-item:active {
+  transform: translateX(4px) scale(0.99);
+}
+
+.user-item .avatar,
+.user-avatar,
+.chat-item-icon,
+.chat-avatar {
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.user-item:hover .avatar,
+.chat-item:hover .chat-item-icon {
+  transform: scale(1.08);
+}
+
+/* Online pulse */
+.user-item .online-dot {
+  animation: dotPulse 2s ease-out infinite;
+}
+
+.chat-status.online::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  margin-right: 5px;
+  vertical-align: middle;
+  animation: dotPulse 2s ease-out infinite;
+}
+
+/* Unread badge pop */
+.unread-badge {
+  animation: badgePop 0.35s var(--ease-spring) both;
+}
+
+/* ---- Search results dropdown ---- */
+.search-results:not(.hidden) {
+  animation: popIn 0.22s var(--ease-out) both;
+  transform-origin: top center;
+}
+
+/* ---- Inputs focus glow ---- */
+.sidebar-search input,
+#message-input,
+.change-row input,
+.create-field input,
+.admin-search input {
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.sidebar-search input:focus,
+#message-input:focus,
+.change-row input:focus,
+.create-field input:focus,
+.admin-search input:focus {
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
+}
+
+/* ---- Messages entrance (only new ones, class added in JS) ---- */
+.message.msg-in.own {
+  animation: msgInRight 0.32s var(--ease-out) both;
+}
+
+.message.msg-in.other {
+  animation: msgInLeft 0.32s var(--ease-out) both;
+}
+
+.photo-message .photo-img {
+  transition: transform 0.25s var(--ease-out);
+}
+
+.photo-message .photo-img:hover {
+  transform: scale(1.015);
+}
+
+.msg-delete {
+  transition: transform 0.15s var(--ease-spring), background 0.15s;
+}
+
+.msg-delete:hover {
+  transform: scale(1.15);
+}
+
+/* ---- Modals: backdrop fade + content pop ---- */
+.settings-backdrop,
+.profile-backdrop,
+.admin-backdrop,
+.create-chat-backdrop,
+.members-backdrop,
+.confirm-backdrop {
+  animation: fadeIn 0.25s ease both;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.settings-content,
+.profile-content,
+.admin-content,
+.create-chat-content,
+.members-content,
+.confirm-box {
+  animation: popIn 0.32s var(--ease-spring) both;
+}
+
+.profile-avatar {
+  animation: popIn 0.45s var(--ease-spring) 0.05s both;
+}
+
+/* Theme & type selector buttons */
+.theme-option,
+.create-type-btn,
+.admin-tab,
+.admin-label-btn,
+.member-action-btn {
+  transition: all 0.18s var(--ease-out);
+}
+
+.theme-option:active,
+.create-type-btn:active {
+  transform: scale(0.97);
+}
+
+/* ---- Mobile transitions ---- */
+@media (max-width: 768px) {
+  .chat-area.mobile-chat-open {
+    animation: slideInRight 0.28s var(--ease-out) both;
+  }
+
+  .user-item:hover,
+  .chat-item:hover {
+    transform: none;
+  }
+
+  .user-item:active,
+  .chat-item:active {
+    transform: scale(0.98);
+    background: var(--bg-hover);
+  }
+
+  .chat-back-btn:active {
+    transform: scale(0.9);
+  }
+}
+
+/* ============================================================
+   CLOSING ANIMATIONS & EXTRA POLISH
+   ============================================================ */
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes popOut {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.9) translateY(14px); }
+}
+
+@keyframes slideOutRight {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(40px); }
+}
+
+@keyframes textSheen {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Smoother, springier message entrance */
+.message.msg-in.own {
+  animation: msgInRight 0.4s var(--ease-spring) both;
+}
+.message.msg-in.other {
+  animation: msgInLeft 0.4s var(--ease-spring) both;
+}
+
+/* Modal/overlay open — a touch smoother */
+.settings-content,
+.profile-content,
+.admin-content,
+.create-chat-content,
+.members-content,
+.confirm-box {
+  animation: popIn 0.4s var(--ease-spring) both;
+  transform-origin: center bottom;
+  will-change: transform, opacity;
+}
+
+/* Overlay CLOSE — driven by the .closing class added in JS */
+.closing .settings-backdrop,
+.closing .profile-backdrop,
+.closing .admin-backdrop,
+.closing .create-chat-backdrop,
+.closing .members-backdrop,
+.closing .confirm-backdrop {
+  animation: fadeOut 0.22s ease both;
+}
+
+.closing .settings-content,
+.closing .profile-content,
+.closing .admin-content,
+.closing .create-chat-content,
+.closing .members-content,
+.closing .confirm-box {
+  animation: popOut 0.24s var(--ease-in-out) both;
+}
+
+/* Smooth theme switching (dark <-> light) — only on containers without transform hovers */
+body,
+.sidebar,
+.chat-header,
+.message-input-area,
+.chat-area,
+.messages-container,
+.sidebar-header,
+.chat-placeholder {
+  transition: background-color 0.35s var(--ease-out), color 0.35s var(--ease-out), border-color 0.35s var(--ease-out);
+}
+
+/* Animated gradient text for the brand marks */
+.auth-logo,
+.sidebar-header h2 {
+  background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899, #6366f1);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textSheen 5s linear infinite;
+}
+
+/* Avatar hover ring */
+.user-item:hover .avatar,
+.chat-item:hover .chat-item-icon,
+.chat-avatar:hover {
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.25);
+}
+
+/* Continuously alive gradient on primary action buttons */
+#send-btn,
+.create-chat-submit,
+#photo-upload-btn {
+  background-size: 180% 180%;
+  animation: gradientShift 6s var(--ease-in-out) infinite;
+}
+
+/* ---- Mobile close transition ---- */
+@media (max-width: 768px) {
+  .chat-area.mobile-closing {
+    animation: slideOutRight 0.24s var(--ease-in-out) both;
+  }
+}
+
+/* ---- Respect reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

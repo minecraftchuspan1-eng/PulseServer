@@ -14,9 +14,21 @@ const BOT_COLOR = '#6366f1';
 const ADMIN_USERNAMES = ['teardown777', 'pulse', 'minecraftch'];
 const ADMIN_EMAILS = ['minecraftchuspan1@gmail.com', 'artemiiest@gmail.com'];
 
+// Image upload safety: only real image MIME types, capped size (prevents text/html XSS + storage DoS)
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+const MAX_IMAGE_CHARS = 5 * 1024 * 1024; // ~5 MB of base64 string
+
+function isValidImageData(s) {
+  if (typeof s !== 'string' || s.length > MAX_IMAGE_CHARS) return false;
+  const m = s.match(/^data:([^;]+);base64,/i);
+  return !!(m && ALLOWED_IMAGE_TYPES.includes(m[1].toLowerCase()));
+}
+
 const GIGACHAT_AUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
 const GIGACHAT_API_URL = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
-const GIGACHAT_AUTH_KEY = 'MDE5ZTc4MDMtYWRlZi03YTc1LTg0NDgtOTMyYzcxODFmNjJiOjMzMmFmMWNjLWZiZjctNGNlMi1iMjQ1LTJiZWUwZDYyYTI0Mg==';
+// SECURITY: rotate this key in Sber's cabinet — it was committed to git history and must be considered leaked.
+// Set GIGACHAT_AUTH_KEY in the environment; the literal below is only a fallback for local runs.
+const GIGACHAT_AUTH_KEY = process.env.GIGACHAT_AUTH_KEY || 'MDE5ZTc4MDMtYWRlZi03YTc1LTg0NDgtOTMyYzcxODFmNjJiOjMzMmFmMWNjLWZiZjctNGNlMi1iMjQ1LTJiZWUwZDYyYTI0Mg==';
 const GIGACHAT_SCOPE = 'GIGACHAT_API_PERS';
 
 let gigaChatToken = null;
@@ -273,6 +285,8 @@ const io = new Server(server, {
   app.post('/api/messages/photo', async (req, res) => {
     const { chatId, userId, imageData, caption } = req.body;
     if (!chatId || !userId || !imageData) return res.status(400).json({ error: 'Missing required fields' });
+    if (!isValidImageData(imageData)) return res.status(400).json({ error: 'Invalid or too large image' });
+    if (caption && String(caption).length > 2000) return res.status(400).json({ error: 'Caption too long' });
     try {
       const { rows: chatInfo } = await db.query('SELECT type FROM chats WHERE id = $1', [chatId]);
       if (!chatInfo.length) return res.status(404).json({ error: 'Chat not found' });
@@ -352,9 +366,12 @@ const io = new Server(server, {
       if (!rows.length || !rows[0].avatar_url) return res.status(404).json({ error: 'Not found' });
       const dataUrl = rows[0].avatar_url;
       const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) return res.status(400).json({ error: 'Invalid avatar' });
+      if (!matches || !ALLOWED_IMAGE_TYPES.includes(matches[1].toLowerCase())) {
+        return res.status(400).json({ error: 'Invalid avatar' });
+      }
       const buf = Buffer.from(matches[2], 'base64');
-      res.setHeader('Content-Type', matches[1]);
+      res.setHeader('Content-Type', matches[1].toLowerCase());
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.send(buf);
     } catch (err) {
@@ -386,6 +403,7 @@ const io = new Server(server, {
   app.put('/api/users/avatar', async (req, res) => {
     const { userId, avatarUrl } = req.body;
     if (!userId) return res.status(400).json({ error: 'Required' });
+    if (avatarUrl && !isValidImageData(avatarUrl)) return res.status(400).json({ error: 'Invalid or too large image' });
     try {
       const hasAvatar = avatarUrl && avatarUrl.startsWith('data:');
       const { rows: cur } = await db.query('SELECT avatar_version FROM users WHERE id = $1', [userId]);
@@ -589,6 +607,7 @@ const io = new Server(server, {
     const chatId = req.params.id;
     const { userId, avatarUrl } = req.body;
     if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    if (avatarUrl && !isValidImageData(avatarUrl)) return res.status(400).json({ error: 'Invalid or too large image' });
     try {
       const { rows: member } = await db.query("SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')", [chatId, userId]);
       if (!member.length) return res.status(403).json({ error: 'Only owner/admin can change avatar' });
@@ -626,9 +645,12 @@ const io = new Server(server, {
       const { rows } = await db.query('SELECT avatar_url FROM chats WHERE id = $1', [req.params.chatId]);
       if (!rows.length || !rows[0].avatar_url) return res.status(404).json({ error: 'Not found' });
       const matches = rows[0].avatar_url.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) return res.status(400).json({ error: 'Invalid avatar' });
+      if (!matches || !ALLOWED_IMAGE_TYPES.includes(matches[1].toLowerCase())) {
+        return res.status(400).json({ error: 'Invalid avatar' });
+      }
       const buf = Buffer.from(matches[2], 'base64');
-      res.setHeader('Content-Type', matches[1]);
+      res.setHeader('Content-Type', matches[1].toLowerCase());
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.send(buf);
     } catch (err) {
@@ -786,7 +808,8 @@ const io = new Server(server, {
     });
 
     socket.on('message:send', async ({ chatId, content, receiverId }) => {
-      if (!currentUser || !content.trim()) return;
+      if (!currentUser || typeof content !== 'string' || !content.trim()) return;
+      if (content.length > 10000) { socket.emit('error', 'Message too long'); return; }
       if (chatId) {
         const { rows: chatInfo } = await db.query('SELECT type FROM chats WHERE id = $1', [chatId]);
         if (chatInfo.length && chatInfo[0].type === 'channel') {
@@ -819,6 +842,7 @@ const io = new Server(server, {
 
     socket.on('photo:send', async ({ chatId, photoUrl, caption }) => {
       if (!currentUser || !photoUrl) return;
+      if (!isValidImageData(photoUrl)) { socket.emit('error', 'Invalid or too large image'); return; }
       if (chatId) {
         const { rows: chatInfo } = await db.query('SELECT type FROM chats WHERE id = $1', [chatId]);
         if (chatInfo.length && chatInfo[0].type === 'channel') {
