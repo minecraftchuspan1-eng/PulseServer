@@ -57,6 +57,33 @@ function closeOverlay(overlay, mode) {
   setTimeout(finish, 300); // fallback if animationend doesn't fire
 }
 
+// --- Auth: attach the verified Firebase ID token to every request to the server ---
+let idToken = null;
+
+async function getToken() {
+  try {
+    if (auth && auth.currentUser) {
+      idToken = await auth.currentUser.getIdToken();
+      return idToken;
+    }
+  } catch (e) {}
+  return idToken;
+}
+
+async function authHeaders(extra) {
+  const t = await getToken();
+  const h = Object.assign({}, extra || {});
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+
+// Drop-in replacement for fetch() that adds the Authorization header.
+async function authFetch(url, opts) {
+  opts = opts || {};
+  const headers = await authHeaders(opts.headers);
+  return fetch(url, Object.assign({}, opts, { headers }));
+}
+
 function createAvatarHtml(u) {
   var div = document.createElement('div');
   div.className = 'avatar';
@@ -217,6 +244,13 @@ try {
   firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
   googleProvider = new firebase.auth.GoogleAuthProvider();
+  // Keep the cached token fresh (Firebase auto-refreshes ~hourly) and update the live socket.
+  auth.onIdTokenChanged(async (u) => {
+    idToken = u ? await u.getIdToken() : null;
+    if (socket) socket.auth = { token: idToken };
+    // If we restored a session after the initial render, (re)load token-gated lists.
+    if (u && currentUser) { loadAllUsers(); loadRecentUsers(); }
+  });
 } catch (e) {
   console.error('Firebase init error:', e);
 }
@@ -306,7 +340,7 @@ googleBtn.addEventListener('click', () => {
 
 async function handleGoogleResult(result) {
   const user = result.user;
-  const res = await fetch(API + '/api/auth/google', {
+  const res = await authFetch(API + '/api/auth/google', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uid: user.uid, displayName: user.displayName, email: user.email })
@@ -373,12 +407,22 @@ function updateUserUI() {
   }
 }
 
-function connectSocket() {
+async function connectSocket() {
   if (socket) socket.disconnect();
-  socket = io(API, { transports: ['polling', 'websocket'] });
+  let token = await getToken();
+  if (!token && auth) {
+    // localStorage fast-login may run before Firebase restores the session; wait for it.
+    token = await new Promise((resolve) => {
+      const unsub = auth.onIdTokenChanged(async (u) => {
+        if (u) { try { unsub(); } catch (e) {} resolve(await u.getIdToken()); }
+      });
+      setTimeout(() => resolve(null), 8000);
+    });
+  }
+  socket = io(API, { transports: ['polling', 'websocket'], auth: { token: token } });
 
   socket.on('connect', () => {
-    socket.emit('user:online', currentUser);
+    socket.emit('user:online', {});
   });
 
   socket.on('users:online', (users) => {
@@ -449,7 +493,7 @@ function connectSocket() {
   socket.on('chat:member:joined', ({ chatId, userId, members }) => {
     if (activeChatId === chatId) { activeChatMembers = members || []; updateInputVisibility(); }
     if (userId === currentUser.id) {
-      fetch(API + '/api/chats/search?q=&userId=' + currentUser.id + '&_t=' + Date.now()).catch(function(){});
+      authFetch(API + '/api/chats/search?q=&userId=' + currentUser.id + '&_t=' + Date.now()).catch(function(){});
     }
     renderMembersModal();
     updateChatHeader();
@@ -657,7 +701,7 @@ function showChat() {
 
 async function loadAllUsers() {
   try {
-    const res = await fetch(API + '/api/users?_t=' + Date.now());
+    const res = await authFetch(API + '/api/users?_t=' + Date.now());
     const data = await res.json();
     allUsers = data.users.filter(u => u.id !== currentUser.id);
   } catch {}
@@ -665,7 +709,7 @@ async function loadAllUsers() {
 
 async function loadRecentUsers() {
   try {
-    const res = await fetch(API + '/api/users/recent?userId=' + currentUser.id + '&_t=' + Date.now());
+    const res = await authFetch(API + '/api/users/recent?userId=' + currentUser.id + '&_t=' + Date.now());
     const data = await res.json();
     renderRecentUsers(data.users);
   } catch {}
@@ -756,7 +800,7 @@ function renderChats() {
 }
 
 function loadMembers(chatId) {
-  fetch(API + '/api/chats/' + chatId + '/members?userId=' + currentUser.id + '&_t=' + Date.now())
+  authFetch(API + '/api/chats/' + chatId + '/members?userId=' + currentUser.id + '&_t=' + Date.now())
     .then(function(r) { return r.json(); })
     .then(function(data) {
       activeChatMembers = data.members || [];
@@ -874,7 +918,7 @@ function renderMembersModalBody() {
           demoteBtn.className = 'member-action-btn';
           demoteBtn.textContent = 'Demote';
           demoteBtn.addEventListener('click', function() {
-            fetch(API + '/api/chats/' + activeChatId + '/role', {
+            authFetch(API + '/api/chats/' + activeChatId + '/role', {
               method: 'PUT', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ requesterId: currentUser.id, targetId: m.id, role: 'member' })
             }).catch(function(){});
@@ -886,7 +930,7 @@ function renderMembersModalBody() {
           promoteBtn.className = 'member-action-btn';
           promoteBtn.textContent = 'Admin';
           promoteBtn.addEventListener('click', function() {
-            fetch(API + '/api/chats/' + activeChatId + '/role', {
+            authFetch(API + '/api/chats/' + activeChatId + '/role', {
               method: 'PUT', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ requesterId: currentUser.id, targetId: m.id, role: 'admin' })
             }).catch(function(){});
@@ -899,7 +943,7 @@ function renderMembersModalBody() {
       banBtn.textContent = 'Ban';
       banBtn.addEventListener('click', function() {
         showConfirm('Ban ' + m.nickname + ' from this chat?', function() {
-          fetch(API + '/api/chats/' + activeChatId + '/ban', {
+          authFetch(API + '/api/chats/' + activeChatId + '/ban', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ requesterId: currentUser.id, targetId: m.id })
           }).catch(function(){});
@@ -965,7 +1009,7 @@ function openGroupChat(chat) {
     chatDeleteBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
     chatDeleteBtn.onclick = function() {
       showConfirm('Delete ' + (chat.name || 'this chat') + '?', function() {
-        fetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' }).catch(function(){});
+        authFetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' }).catch(function(){});
       });
     };
   } else {
@@ -974,7 +1018,7 @@ function openGroupChat(chat) {
     chatDeleteBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
     chatDeleteBtn.onclick = function() {
       showConfirm('Leave ' + (chat.name || 'this chat') + '?', function() {
-        fetch(API + '/api/chats/' + activeChatId + '/leave', {
+        authFetch(API + '/api/chats/' + activeChatId + '/leave', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId: currentUser.id })
         }).then(function(r) { return r.json(); }).then(function(data) {
@@ -1091,7 +1135,7 @@ searchInput.addEventListener('input', () => {
     userMatches.slice(0, 10).forEach(function(u) {
       allResults.push({ type: 'user', data: u });
     });
-    fetch(API + '/api/chats/search?q=' + encodeURIComponent(q) + '&userId=' + currentUser.id + '&_t=' + Date.now())
+    authFetch(API + '/api/chats/search?q=' + encodeURIComponent(q) + '&userId=' + currentUser.id + '&_t=' + Date.now())
       .then(function(r) { return r.json(); })
       .then(function(data) {
         var chatResults = (data.chats || []).slice(0, 5);
@@ -1172,7 +1216,7 @@ function renderSearchResults(results, q) {
 }
 
 function joinAndOpenChat(chat) {
-  fetch(API + '/api/chats/' + chat.id + '/join', {
+  authFetch(API + '/api/chats/' + chat.id + '/join', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: currentUser.id })
   }).then(function(r) { return r.json(); }).then(function(data) {
@@ -1180,7 +1224,7 @@ function joinAndOpenChat(chat) {
     myChats.push(chat);
     renderChats();
     openGroupChat(chat);
-    fetch(API + '/api/chats/' + chat.id + '/messages?userId=' + currentUser.id + '&_t=' + Date.now())
+    authFetch(API + '/api/chats/' + chat.id + '/messages?userId=' + currentUser.id + '&_t=' + Date.now())
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.messages) {
@@ -1265,7 +1309,7 @@ chatAvatarInput.addEventListener('change', function() {
       c.width = w; c.height = h;
       c.getContext('2d').drawImage(img, 0, 0, w, h);
       var dataUrl = c.toDataURL('image/jpeg', 0.8);
-      fetch(API + '/api/chats/' + activeChatId + '/avatar', {
+      authFetch(API + '/api/chats/' + activeChatId + '/avatar', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
       }).then(function(r) { return r.json(); }).then(function(data) {
@@ -1331,7 +1375,7 @@ usernameBtn.addEventListener('click', async () => {
   if (!n) return;
   usernameError.textContent = '';
   try {
-    const res = await fetch(API + '/api/users/username', {
+    const res = await authFetch(API + '/api/users/username', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: currentUser.id, username: n })
     });
@@ -1355,7 +1399,7 @@ nicknameBtn.addEventListener('click', async () => {
   if (!n || n.length > 30) { nicknameError.textContent = '1-30 chars'; return; }
   nicknameError.textContent = '';
   try {
-    const res = await fetch(API + '/api/users/nickname', {
+    const res = await authFetch(API + '/api/users/nickname', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: currentUser.id, nickname: n })
     });
@@ -1402,7 +1446,7 @@ avatarInput.addEventListener('change', function() {
 });
 
 function uploadAvatar(dataUrl) {
-  fetch(API + '/api/users/avatar', {
+  authFetch(API + '/api/users/avatar', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: currentUser.id, avatarUrl: dataUrl })
   }).then(function(res) {
@@ -1421,7 +1465,7 @@ function uploadAvatar(dataUrl) {
 
 avatarRemoveBtn.addEventListener('click', async () => {
   try {
-    const res = await fetch(API + '/api/users/avatar', {
+    const res = await authFetch(API + '/api/users/avatar', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: currentUser.id, avatarUrl: '' })
     });
@@ -1529,7 +1573,7 @@ createChatUsername.addEventListener('input', function() {
   if (!val || val.length < 3) return;
   createChatUsernameStatus.textContent = 'Checking...';
   createUsernameTimer = setTimeout(function() {
-    fetch(API + '/api/username/check', {
+    authFetch(API + '/api/username/check', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: val })
     }).then(function(r) { return r.json(); }).then(function(data) {
@@ -1547,7 +1591,7 @@ createChatSubmit.addEventListener('click', function() {
   if (!name) { createChatError.textContent = 'Name is required'; return; }
   createChatError.textContent = 'Creating...';
   createChatSubmit.disabled = true;
-  fetch(API + '/api/chats/create', {
+  authFetch(API + '/api/chats/create', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: currentUser.id, name: name, type: createType, username: username || undefined, description: desc })
   }).then(function(r) { return r.json(); }).then(function(data) {
@@ -1577,7 +1621,7 @@ function openAdminPanel() {
 }
 
 function loadAdminUsers() {
-  fetch(API + '/api/admin/users?adminId=' + currentUser.id)
+  authFetch(API + '/api/admin/users?adminId=' + currentUser.id)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       allAdminUsers = data.users || [];
@@ -1586,7 +1630,7 @@ function loadAdminUsers() {
 }
 
 function loadAdminChats() {
-  fetch(API + '/api/admin/chats?adminId=' + currentUser.id)
+  authFetch(API + '/api/admin/chats?adminId=' + currentUser.id)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       allAdminChats = data.chats || [];
@@ -1625,7 +1669,7 @@ function renderAdminPanel(filter) {
         btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
         btn.addEventListener('click', function() {
           var newLabel = u.label === lbl ? '' : lbl;
-          fetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
+          authFetch(API + '/api/admin/users/' + u.id + '/label?adminId=' + currentUser.id, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ label: newLabel })
           }).then(function(r) { return r.json(); }).then(function() {
@@ -1665,7 +1709,7 @@ function renderAdminPanel(filter) {
         btn.textContent = lbl === 'verified' ? 'Verified' : 'SCAM';
         btn.addEventListener('click', function() {
           var newLabel = c.label === lbl ? '' : lbl;
-          fetch(API + '/api/chats/' + c.id + '/label?adminId=' + currentUser.id, {
+          authFetch(API + '/api/chats/' + c.id + '/label?adminId=' + currentUser.id, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ label: newLabel })
           }).then(function(r) { return r.json(); }).then(function() {
@@ -1753,7 +1797,7 @@ function startChat(user) {
   chatDeleteBtn.onclick = () => {
     if (!activeChatId) return;
     showConfirm('Delete this chat for both users?', () => {
-      fetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' })
+      authFetch(API + '/api/chats/' + activeChatId + '?userId=' + currentUser.id, { method: 'DELETE' })
         .catch(() => {});
     });
   };
@@ -1802,7 +1846,7 @@ function renderMessages() {
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           showConfirm('Delete this message?', () => {
-            fetch(API + '/api/messages/' + m.id + '?userId=' + currentUser.id, { method: 'DELETE' })
+            authFetch(API + '/api/messages/' + m.id + '?userId=' + currentUser.id, { method: 'DELETE' })
               .then(res => {
                 if (!res.ok) console.error('Delete failed:', res.status);
                 else {
@@ -1847,7 +1891,7 @@ function sendMessage() {
     const caption = messageInput.value.trim();
     messageInput.value = '';
     emitTypingStop();
-    fetch(API + '/api/messages/photo', {
+    authFetch(API + '/api/messages/photo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

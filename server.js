@@ -24,6 +24,65 @@ function isValidImageData(s) {
   return !!(m && ALLOWED_IMAGE_TYPES.includes(m[1].toLowerCase()));
 }
 
+// ---------------------------------------------------------------------------
+// Firebase ID-token verification (no service-account file needed).
+// We validate the RS256 JWT against Google's public certs ourselves.
+// ---------------------------------------------------------------------------
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'so2market';
+const FIREBASE_CERTS_URL = 'https://www.googleapis.com/robots/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+let firebaseCerts = {};
+let firebaseCertsExpiry = 0;
+
+function httpsGetJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data }));
+    }).on('error', reject);
+  });
+}
+
+async function getFirebaseCerts() {
+  if (Date.now() < firebaseCertsExpiry && Object.keys(firebaseCerts).length) return firebaseCerts;
+  const { data, headers } = await httpsGetJson(FIREBASE_CERTS_URL);
+  firebaseCerts = JSON.parse(data);
+  const cc = headers['cache-control'] || '';
+  const m = cc.match(/max-age=(\d+)/);
+  firebaseCertsExpiry = Date.now() + (m ? parseInt(m[1], 10) * 1000 : 3600 * 1000);
+  return firebaseCerts;
+}
+
+function b64urlToBuf(str) {
+  str = String(str).replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  return Buffer.from(str, 'base64');
+}
+
+// Returns decoded payload ({ sub: uid, email, name, ... }) or throws.
+async function verifyFirebaseToken(idToken) {
+  if (!idToken || typeof idToken !== 'string') throw new Error('No token');
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw new Error('Malformed token');
+  const header = JSON.parse(b64urlToBuf(parts[0]).toString('utf8'));
+  const payload = JSON.parse(b64urlToBuf(parts[1]).toString('utf8'));
+  if (header.alg !== 'RS256') throw new Error('Bad alg');
+  const certs = await getFirebaseCerts();
+  const cert = certs[header.kid];
+  if (!cert) throw new Error('Unknown key id');
+  const ok = crypto.createVerify('RSA-SHA256')
+    .update(parts[0] + '.' + parts[1])
+    .verify(cert, b64urlToBuf(parts[2]));
+  if (!ok) throw new Error('Bad signature');
+  const now = Math.floor(Date.now() / 1000);
+  if (typeof payload.exp !== 'number' || payload.exp <= now) throw new Error('Token expired');
+  if (typeof payload.iat === 'number' && payload.iat > now + 300) throw new Error('Token from the future');
+  if (payload.aud !== FIREBASE_PROJECT_ID) throw new Error('Bad audience');
+  if (payload.iss !== 'https://securetoken.google.com/' + FIREBASE_PROJECT_ID) throw new Error('Bad issuer');
+  if (!payload.sub) throw new Error('No subject');
+  return payload;
+}
+
 const GIGACHAT_AUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
 const GIGACHAT_API_URL = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
 // SECURITY: rotate this key in Sber's cabinet — it was committed to git history and must be considered leaked.
@@ -174,14 +233,18 @@ const io = new Server(server, {
   cors: { origin: ['http://pulse.xo.je', 'https://pulse.xo.je', 'http://localhost:3000', 'http://localhost:5500'], methods: ['GET', 'POST'] }
 });
 
+  const ALLOWED_ORIGINS = ['http://pulse.xo.je', 'https://pulse.xo.je', 'http://localhost:3000', 'http://localhost:5500'];
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
   });
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '6mb' }));
 
   const onlineUsers = new Map();
 
@@ -197,94 +260,76 @@ const io = new Server(server, {
     return { id: u.id, username: u.username, nickname: u.nickname, avatar_color: u.avatar_color, avatar_url: (u.avatar_url && u.avatar_url.startsWith('data:')) ? '/api/avatar/' + u.id + '?v=' + (u.avatar_version || 0) : (u.avatar_url || ''), label: u.label || '', email: u.email || '' };
   }
 
-  function isAdmin(userId) {
-    return new Promise(async (resolve) => {
-      try {
-        const { rows } = await db.query('SELECT LOWER(username) as uname, email FROM users WHERE id = $1', [userId]);
-        if (!rows.length) return resolve(false);
-        if (ADMIN_USERNAMES.includes(rows[0].uname)) return resolve(true);
-        if (rows[0].email && ADMIN_EMAILS.includes(rows[0].email.toLowerCase())) return resolve(true);
-        resolve(false);
-      } catch { resolve(false); }
-    });
+  function userIsAdmin(user) {
+    if (!user) return false;
+    const uname = (user.username || '').toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    return ADMIN_USERNAMES.includes(uname) || (!!email && ADMIN_EMAILS.includes(email));
   }
 
-  app.post('/api/register', async (req, res) => {
-    const { username, password, nickname } = req.body;
-    if (!username || !password || !nickname) {
-      return res.status(400).json({ error: 'All fields required' });
-    }
-    try {
-      const { rows: existingUsers } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
-      const { rows: existingChats } = await db.query('SELECT id FROM chats WHERE LOWER(username) = LOWER($1)', [username]);
-      if (existingUsers.length || existingChats.length) {
-        return res.status(409).json({ error: 'Username already taken' });
+  // Look up the user by the verified Firebase uid; create the account on first sign-in.
+  async function findOrCreateUserByToken(decoded) {
+    const uid = decoded.sub;
+    const email = decoded.email || '';
+    const { rows: existing } = await db.query(
+      'SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label, email FROM users WHERE firebase_uid = $1',
+      [uid]
+    );
+    if (existing.length) {
+      if (email && existing[0].email !== email) {
+        await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, existing[0].id]);
+        existing[0].email = email;
       }
-      const hashed = bcrypt.hashSync(password, 10);
-      const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const { rows } = await db.query(
-        'INSERT INTO users (username, password, nickname, avatar_color) VALUES ($1, $2, $3, $4) RETURNING id, username, nickname, avatar_color',
-        [username, hashed, nickname, color]
-      );
-      res.json({ user: rows[0] });
-    } catch (err) {
-      res.status(500).json({ error: 'Server error' });
+      return existing[0];
     }
+    const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const nickname = decoded.name || email || uid.slice(0, 8);
+    const username = `google_${uid.slice(0, 8)}`;
+    const { rows } = await db.query(
+      'INSERT INTO users (username, nickname, avatar_color, firebase_uid, email) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, nickname, avatar_color, avatar_url, avatar_version, label, email',
+      [username, nickname, color, uid, email]
+    );
+    return rows[0];
+  }
+
+  // Express middleware: identity comes ONLY from the verified token, never from the request body/query.
+  async function requireAuth(req, res, next) {
+    const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
+    if (!m) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+      const decoded = await verifyFirebaseToken(m[1]);
+      req.user = await findOrCreateUserByToken(decoded);
+      next();
+    } catch (e) {
+      res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  function requireAdmin(req, res, next) {
+    if (!userIsAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
+    next();
+  }
+
+  // Legacy username/password endpoints are disabled: the app uses Google sign-in only,
+  // and open registration was a spam/bot-account vector.
+  app.post('/api/register', (req, res) => res.status(410).json({ error: 'Registration disabled' }));
+  app.post('/api/login', (req, res) => res.status(410).json({ error: 'Password login disabled' }));
+
+  // Verifies the Firebase token, provisions the account on first sign-in, returns the user.
+  app.post('/api/auth/google', requireAuth, async (req, res) => {
+    res.json({ user: formatUser(req.user) });
   });
 
-  app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-      return res.status(400).json({ error: 'All fields required' });
-    }
-    try {
-      const { rows } = await db.query('SELECT * FROM users WHERE username = $1', [username]);
-      if (!rows.length || !bcrypt.compareSync(password, rows[0].password)) {
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
-      const u = rows[0];
-      res.json({ user: formatUser(u) });
-    } catch (err) {
-      res.status(500).json({ error: 'Server error' });
-    }
-  });
-
-  app.post('/api/auth/google', async (req, res) => {
-    const { uid, displayName, email } = req.body;
-    if (!uid) return res.status(400).json({ error: 'No uid' });
-    try {
-      const nickname = displayName || email || uid.slice(0, 8);
-      const { rows: existing } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label, email FROM users WHERE firebase_uid = $1', [uid]);
-      if (existing.length) {
-        if (email && existing[0].email !== email) {
-          await db.query('UPDATE users SET email = $1 WHERE id = $2', [email, existing[0].id]);
-          existing[0].email = email;
-        }
-        return res.json({ user: formatUser(existing[0]) });
-      }
-      const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#14b8a6'];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const username = `google_${uid.slice(0, 8)}`;
-      const { rows } = await db.query(
-        'INSERT INTO users (username, nickname, avatar_color, firebase_uid, email) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, nickname, avatar_color, avatar_url, avatar_version, label, email',
-        [username, nickname, color, uid, email || '']
-      );
-      res.json({ user: formatUser(rows[0]) });
-    } catch (err) {
-      console.error('Google auth error:', err.message, err.stack);
-      res.status(500).json({ error: 'Server error' });
-    }
-  });
-
-  app.get('/api/users', async (req, res) => {
+  app.get('/api/users', requireAuth, async (req, res) => {
     const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label FROM users');
     res.json({ users: rows.map(formatUser) });
   });
 
-  app.post('/api/messages/photo', async (req, res) => {
-    const { chatId, userId, imageData, caption } = req.body;
-    if (!chatId || !userId || !imageData) return res.status(400).json({ error: 'Missing required fields' });
+  app.post('/api/messages/photo', requireAuth, async (req, res) => {
+    const { chatId, imageData, caption } = req.body;
+    const userId = req.user.id;
+    if (!chatId || !imageData) return res.status(400).json({ error: 'Missing required fields' });
     if (!isValidImageData(imageData)) return res.status(400).json({ error: 'Invalid or too large image' });
     if (caption && String(caption).length > 2000) return res.status(400).json({ error: 'Caption too long' });
     try {
@@ -319,9 +364,8 @@ const io = new Server(server, {
     }
   });
 
-  app.get('/api/users/recent', async (req, res) => {
-    const userId = req.query.userId;
-    if (!userId) return res.json({ users: [] });
+  app.get('/api/users/recent', requireAuth, async (req, res) => {
+    const userId = req.user.id;
     const { rows } = await db.query(`
       SELECT DISTINCT u.id, u.username, u.nickname, u.avatar_color, u.avatar_url, u.avatar_version, u.label
       FROM messages m
@@ -331,9 +375,10 @@ const io = new Server(server, {
     res.json({ users: rows.map(formatUser) });
   });
 
-  app.put('/api/users/username', async (req, res) => {
-    const { userId, username } = req.body;
-    if (!userId || !username) return res.status(400).json({ error: 'Required' });
+  app.put('/api/users/username', requireAuth, async (req, res) => {
+    const { username } = req.body;
+    const userId = req.user.id;
+    if (!username) return res.status(400).json({ error: 'Required' });
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.status(400).json({ error: '3-20 chars, letters, numbers, underscore' });
     try {
       const { rows: existingUsers } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2', [username, userId]);
@@ -347,9 +392,10 @@ const io = new Server(server, {
     }
   });
 
-  app.put('/api/users/nickname', async (req, res) => {
-    const { userId, nickname } = req.body;
-    if (!userId || !nickname) return res.status(400).json({ error: 'Required' });
+  app.put('/api/users/nickname', requireAuth, async (req, res) => {
+    const { nickname } = req.body;
+    const userId = req.user.id;
+    if (!nickname) return res.status(400).json({ error: 'Required' });
     if (nickname.length < 1 || nickname.length > 30) return res.status(400).json({ error: '1-30 chars' });
     try {
       await db.query('UPDATE users SET nickname = $1 WHERE id = $2', [nickname, userId]);
@@ -379,16 +425,12 @@ const io = new Server(server, {
     }
   });
 
-  app.get('/api/admin/users', async (req, res) => {
-    const userId = req.query.adminId;
-    if (!userId || !(await isAdmin(userId))) return res.status(403).json({ error: 'Forbidden' });
+  app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
     const { rows } = await db.query('SELECT id, username, nickname, avatar_color, avatar_url, avatar_version, label, email FROM users ORDER BY id');
     res.json({ users: rows.map(formatUser) });
   });
 
-  app.put('/api/admin/users/:targetId/label', async (req, res) => {
-    const adminId = req.query.adminId;
-    if (!adminId || !(await isAdmin(adminId))) return res.status(403).json({ error: 'Forbidden' });
+  app.put('/api/admin/users/:targetId/label', requireAuth, requireAdmin, async (req, res) => {
     const { label } = req.body;
     if (!['verified', 'scam', ''].includes(label)) return res.status(400).json({ error: 'Invalid label' });
     await db.query('UPDATE users SET label = $1 WHERE id = $2', [label, req.params.targetId]);
@@ -400,9 +442,9 @@ const io = new Server(server, {
     return '/api/avatar/' + userId + '?v=' + (version || 0);
   }
 
-  app.put('/api/users/avatar', async (req, res) => {
-    const { userId, avatarUrl } = req.body;
-    if (!userId) return res.status(400).json({ error: 'Required' });
+  app.put('/api/users/avatar', requireAuth, async (req, res) => {
+    const { avatarUrl } = req.body;
+    const userId = req.user.id;
     if (avatarUrl && !isValidImageData(avatarUrl)) return res.status(400).json({ error: 'Invalid or too large image' });
     try {
       const hasAvatar = avatarUrl && avatarUrl.startsWith('data:');
@@ -424,10 +466,10 @@ const io = new Server(server, {
     }
   });
 
-  app.delete('/api/chats/:chatId', async (req, res) => {
+  app.delete('/api/chats/:chatId', requireAuth, async (req, res) => {
     const { chatId } = req.params;
-    const userId = req.query.userId;
-    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    const userId = req.user.id;
+    if (!chatId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: chat } = await db.query('SELECT type, owner_id FROM chats WHERE id = $1', [chatId]);
       if (!chat.length) return res.status(404).json({ error: 'Chat not found' });
@@ -449,10 +491,10 @@ const io = new Server(server, {
     }
   });
 
-  app.delete('/api/messages/:messageId', async (req, res) => {
+  app.delete('/api/messages/:messageId', requireAuth, async (req, res) => {
     const { messageId } = req.params;
-    const userId = req.query.userId;
-    if (!messageId || !userId) return res.status(400).json({ error: 'Required' });
+    const userId = req.user.id;
+    if (!messageId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: msg } = await db.query('SELECT sender_id FROM messages WHERE id = $1', [messageId]);
       if (!msg.length) return res.status(404).json({ error: 'Not found' });
@@ -465,7 +507,7 @@ const io = new Server(server, {
     }
   });
 
-  app.post('/api/username/check', async (req, res) => {
+  app.post('/api/username/check', requireAuth, async (req, res) => {
     const { username } = req.body;
     if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.json({ available: false });
     try {
@@ -475,9 +517,10 @@ const io = new Server(server, {
     } catch { res.json({ available: false }); }
   });
 
-  app.post('/api/chats/create', async (req, res) => {
-    const { userId, name, type, username, description } = req.body;
-    if (!userId || !name || !type || !['group', 'channel'].includes(type)) return res.status(400).json({ error: 'Invalid params' });
+  app.post('/api/chats/create', requireAuth, async (req, res) => {
+    const { name, type, username, description } = req.body;
+    const userId = req.user.id;
+    if (!name || !type || !['group', 'channel'].includes(type)) return res.status(400).json({ error: 'Invalid params' });
     if (username && !/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.status(400).json({ error: '3-20 chars, letters, numbers, underscore' });
     try {
       if (username) {
@@ -501,10 +544,10 @@ const io = new Server(server, {
     }
   });
 
-  app.post('/api/chats/:id/join', async (req, res) => {
+  app.post('/api/chats/:id/join', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { userId } = req.body;
-    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    const userId = req.user.id;
+    if (!chatId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: chat } = await db.query('SELECT id, type FROM chats WHERE id = $1', [chatId]);
       if (!chat.length) return res.status(404).json({ error: 'Chat not found' });
@@ -525,10 +568,10 @@ const io = new Server(server, {
     }
   });
 
-  app.post('/api/chats/:id/leave', async (req, res) => {
+  app.post('/api/chats/:id/leave', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { userId } = req.body;
-    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    const userId = req.user.id;
+    if (!chatId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: member } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
       if (!member.length) return res.status(404).json({ error: 'Not a member' });
@@ -541,10 +584,11 @@ const io = new Server(server, {
     }
   });
 
-  app.put('/api/chats/:id/role', async (req, res) => {
+  app.put('/api/chats/:id/role', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { requesterId, targetId, role } = req.body;
-    if (!chatId || !requesterId || !targetId || !role || !['admin', 'member'].includes(role)) return res.status(400).json({ error: 'Invalid params' });
+    const { targetId, role } = req.body;
+    const requesterId = req.user.id;
+    if (!chatId || !targetId || !role || !['admin', 'member'].includes(role)) return res.status(400).json({ error: 'Invalid params' });
     try {
       const { rows: requester } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, requesterId]);
       if (!requester.length || requester[0].role !== 'owner') return res.status(403).json({ error: 'Only owner can change roles' });
@@ -564,10 +608,11 @@ const io = new Server(server, {
     }
   });
 
-  app.post('/api/chats/:id/ban', async (req, res) => {
+  app.post('/api/chats/:id/ban', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { requesterId, targetId } = req.body;
-    if (!chatId || !requesterId || !targetId) return res.status(400).json({ error: 'Required' });
+    const { targetId } = req.body;
+    const requesterId = req.user.id;
+    if (!chatId || !targetId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: requester } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, requesterId]);
       if (!requester.length || (requester[0].role !== 'owner' && requester[0].role !== 'admin')) return res.status(403).json({ error: 'Only owner/admin can ban' });
@@ -588,10 +633,11 @@ const io = new Server(server, {
     }
   });
 
-  app.post('/api/chats/:id/unban', async (req, res) => {
+  app.post('/api/chats/:id/unban', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { requesterId, targetId } = req.body;
-    if (!chatId || !requesterId || !targetId) return res.status(400).json({ error: 'Required' });
+    const { targetId } = req.body;
+    const requesterId = req.user.id;
+    if (!chatId || !targetId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: requester } = await db.query('SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, requesterId]);
       if (!requester.length || (requester[0].role !== 'owner' && requester[0].role !== 'admin')) return res.status(403).json({ error: 'Only owner/admin can unban' });
@@ -603,10 +649,11 @@ const io = new Server(server, {
     }
   });
 
-  app.put('/api/chats/:id/avatar', async (req, res) => {
+  app.put('/api/chats/:id/avatar', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { userId, avatarUrl } = req.body;
-    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    const { avatarUrl } = req.body;
+    const userId = req.user.id;
+    if (!chatId) return res.status(400).json({ error: 'Required' });
     if (avatarUrl && !isValidImageData(avatarUrl)) return res.status(400).json({ error: 'Invalid or too large image' });
     try {
       const { rows: member } = await db.query("SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2 AND role IN ('owner', 'admin')", [chatId, userId]);
@@ -623,16 +670,12 @@ const io = new Server(server, {
     }
   });
 
-  app.get('/api/admin/chats', async (req, res) => {
-    const userId = req.query.adminId;
-    if (!userId || !(await isAdmin(userId))) return res.status(403).json({ error: 'Forbidden' });
+  app.get('/api/admin/chats', requireAuth, requireAdmin, async (req, res) => {
     const { rows } = await db.query('SELECT id, name, type, username, owner_id, description, label FROM chats WHERE type IN (\'group\', \'channel\') ORDER BY id');
     res.json({ chats: rows });
   });
 
-  app.put('/api/chats/:id/label', async (req, res) => {
-    const adminId = req.query.adminId;
-    if (!adminId || !(await isAdmin(adminId))) return res.status(403).json({ error: 'Forbidden' });
+  app.put('/api/chats/:id/label', requireAuth, requireAdmin, async (req, res) => {
     const { label } = req.body;
     if (!['verified', 'scam', ''].includes(label)) return res.status(400).json({ error: 'Invalid label' });
     await db.query('UPDATE chats SET label = $1 WHERE id = $2', [label, req.params.id]);
@@ -658,10 +701,10 @@ const io = new Server(server, {
     }
   });
 
-  app.get('/api/chats/:id/members', async (req, res) => {
+  app.get('/api/chats/:id/members', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const { userId } = req.query;
-    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    const userId = req.user.id;
+    if (!chatId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
       if (!member.length) return res.status(403).json({ error: 'Not a member' });
@@ -676,10 +719,10 @@ const io = new Server(server, {
     }
   });
 
-  app.get('/api/chats/:id/messages', async (req, res) => {
+  app.get('/api/chats/:id/messages', requireAuth, async (req, res) => {
     const chatId = req.params.id;
-    const userId = req.query.userId;
-    if (!chatId || !userId) return res.status(400).json({ error: 'Required' });
+    const userId = req.user.id;
+    if (!chatId) return res.status(400).json({ error: 'Required' });
     try {
       const { rows: member } = await db.query('SELECT user_id FROM chat_members WHERE chat_id = $1 AND user_id = $2', [chatId, userId]);
       if (!member.length) return res.status(403).json({ error: 'Not a member' });
@@ -702,9 +745,9 @@ const io = new Server(server, {
     }
   });
 
-  app.get('/api/chats/search', async (req, res) => {
-    const { q, userId } = req.query;
-    if (!q || !userId) return res.json({ chats: [] });
+  app.get('/api/chats/search', requireAuth, async (req, res) => {
+    const { q } = req.query;
+    if (!q) return res.json({ chats: [] });
     try {
       const { rows } = await db.query(
         `SELECT c.id, c.name, c.type, c.username, c.description, c.owner_id, c.avatar_url, c.avatar_version, c.label
@@ -724,18 +767,38 @@ const io = new Server(server, {
     }
   });
 
-  io.on('connection', (socket) => {
-    let currentUser = null;
+  // Socket identity comes ONLY from a verified Firebase token in the handshake.
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth && socket.handshake.auth.token;
+      const decoded = await verifyFirebaseToken(token);
+      socket.data.user = await findOrCreateUserByToken(decoded);
+      next();
+    } catch (e) {
+      next(new Error('unauthorized'));
+    }
+  });
 
-    socket.on('user:online', async (user) => {
-      currentUser = user;
+  io.on('connection', (socket) => {
+    let currentUser = socket.data.user;
+
+    socket.on('user:online', async () => {
+      const dbUser = socket.data.user; // trusted identity from the verified socket
       for (const [sid, u] of onlineUsers) {
-        if (u.id === user.id) onlineUsers.delete(sid);
+        if (u.id === dbUser.id) onlineUsers.delete(sid);
       }
-      const { rows: userRow } = await db.query('SELECT avatar_version, label FROM users WHERE id = $1', [user.id]);
-      const ver = userRow.length ? (userRow[0].avatar_version || 0) : 0;
-      user.label = userRow.length ? (userRow[0].label || '') : '';
-      user.avatar_url = (user.avatar_url && user.avatar_url.startsWith('data:')) ? '/api/avatar/' + user.id + '?v=' + ver : (user.avatar_url || '');
+      const ver = dbUser.avatar_version || 0;
+      const user = {
+        id: dbUser.id,
+        username: dbUser.username,
+        nickname: dbUser.nickname,
+        avatar_color: dbUser.avatar_color,
+        avatar_url: (dbUser.avatar_url && dbUser.avatar_url.startsWith('data:')) ? '/api/avatar/' + dbUser.id + '?v=' + ver : (dbUser.avatar_url || ''),
+        avatar_version: ver,
+        label: dbUser.label || '',
+        email: dbUser.email || ''
+      };
+      currentUser = user;
       onlineUsers.set(socket.id, user);
       io.emit('users:online', getOnlineUsersList());
 
