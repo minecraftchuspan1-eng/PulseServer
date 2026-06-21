@@ -306,7 +306,7 @@ const io = new Server(server, {
   // Express middleware: identity comes ONLY from the verified token, never from the request body/query.
   async function requireAuth(req, res, next) {
     const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-    if (!m) { console.warn('[auth] no bearer header on', req.method, req.path); return res.status(401).json({ error: 'Unauthorized' }); }
+    if (!m) { console.warn('[auth] no bearer header on', req.method, req.path); return res.status(401).json({ error: 'Unauthorized', reason: 'No Authorization header' }); }
     try {
       const decoded = await verifyFirebaseToken(m[1]);
       req.user = await findOrCreateUserByToken(decoded);
@@ -330,6 +330,17 @@ const io = new Server(server, {
   // Verifies the Firebase token, provisions the account on first sign-in, returns the user.
   app.post('/api/auth/google', requireAuth, async (req, res) => {
     res.json({ user: formatUser(req.user) });
+  });
+
+  // Diagnostic endpoint — no auth required. Used to test connectivity and Firebase certs.
+  app.get('/api/health', async (req, res) => {
+    try {
+      const { status } = await httpsGetJson(FIREBASE_CERTS_URL);
+      const dbOk = await db.query('SELECT 1').then(() => true).catch(() => false);
+      res.json({ ok: true, firebaseCertsStatus: status, db: dbOk });
+    } catch (e) {
+      res.json({ ok: false, error: e.message });
+    }
   });
 
   app.get('/api/users', requireAuth, async (req, res) => {
