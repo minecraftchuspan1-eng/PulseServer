@@ -259,7 +259,7 @@ const io = new Server(server, {
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
   });
@@ -322,7 +322,7 @@ const io = new Server(server, {
       next();
     } catch (e) {
       console.error('[auth] reject', req.method, req.path, '-', e.message);
-      res.status(401).json({ error: 'Unauthorized', reason: e.message });
+      res.status(401).json({ error: 'Unauthorized' });
     }
   }
 
