@@ -260,7 +260,14 @@ try {
           const res = await authFetch(API + '/api/auth/google', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
           });
-          if (res.ok) { const d = await res.json(); setUser(d.user); }
+          const d = await res.json();
+          if (res.ok) {
+            setUser(d.user);
+          } else {
+            authScreen.classList.remove('hidden');
+            appScreen.classList.add('hidden');
+            authError.textContent = (d.error || 'Sign in failed') + (d.reason ? ' (' + d.reason + ')' : '');
+          }
         } catch (e) {}
       }
     } else if (currentUser || localStorage.getItem('pulse_user')) {
@@ -369,7 +376,7 @@ async function handleGoogleResult(result) {
   });
   const data = await res.json();
   if (res.ok) setUser(data.user);
-  else authError.textContent = data.error;
+  else authError.textContent = (data.error || 'Sign in failed') + (data.reason ? ' (' + data.reason + ')' : '');
 }
 
 auth.getRedirectResult().then(async (result) => {
