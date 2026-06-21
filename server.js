@@ -312,7 +312,7 @@ const io = new Server(server, {
       next();
     } catch (e) {
       console.error('[auth] reject', req.method, req.path, '-', e.message);
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized', reason: e.message });
     }
   }
 
