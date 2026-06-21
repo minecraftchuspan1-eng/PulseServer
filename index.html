@@ -251,6 +251,30 @@
     </div>
   </div>
 
+  <script>
+  // Deterrent only: blocks right-click + common devtools/view-source shortcuts.
+  // NOTE: this cannot truly hide client source — it just stops casual snooping.
+  (function () {
+    document.addEventListener('contextmenu', function (e) { e.preventDefault(); return false; }, true);
+    document.addEventListener('keydown', function (e) {
+      var k = (e.key || '').toLowerCase();
+      var blocked =
+        e.key === 'F12' || e.key === 'F9' ||                              // devtools / pause
+        (e.ctrlKey && e.shiftKey && (k === 'i' || k === 'j' || k === 'c')) || // inspect/console/picker
+        (e.metaKey && e.altKey && (k === 'i' || k === 'j' || k === 'c')) ||   // mac devtools
+        (e.ctrlKey && k === 'u') ||                                        // view-source
+        (e.metaKey && e.altKey && k === 'u') ||                            // mac view-source
+        (e.ctrlKey && k === 's') ||                                        // save page
+        (e.ctrlKey && k === 'p');                                          // print -> source
+      if (blocked) { e.preventDefault(); e.stopPropagation(); return false; }
+    }, true);
+    // Also swallow long-press / drag selection menus on mobile
+    document.addEventListener('selectstart', function (e) {
+      if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return; // keep typing usable
+      e.preventDefault();
+    });
+  })();
+  </script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://messenger-server-vwkj-production.up.railway.app/socket.io/socket.io.js"></script>
