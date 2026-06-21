@@ -239,6 +239,15 @@ const io = new Server(server, {
 
   const ALLOWED_ORIGINS = ['http://pulse.xo.je', 'https://pulse.xo.je', 'http://localhost:3000', 'http://localhost:5500'];
   app.use((req, res, next) => {
+    // Health endpoint before body-parser to avoid any interference
+    if (req.path === '/api/health' && req.method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
+      return res.json({ ok: true, message: 'health check works', pid: process.pid });
+    }
+    if (req.path === '/api/health2' && req.method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
+      return res.json({ ok: true, message: 'health2 works' });
+    }
     const origin = req.headers.origin;
     if (origin && ALLOWED_ORIGINS.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
