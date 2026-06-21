@@ -334,6 +334,9 @@ const io = new Server(server, {
 
   // Diagnostic endpoint — no auth required. Used to test connectivity and Firebase certs.
   app.get('/api/health', async (req, res) => {
+    res.json({ ok: true, message: 'health check works' });
+  });
+  app.get('/api/health2', async (req, res) => {
     try {
       const { status } = await httpsGetJson(FIREBASE_CERTS_URL);
       const dbOk = await db.query('SELECT 1').then(() => true).catch(() => false);
