@@ -69,10 +69,13 @@ async function verifyFirebaseToken(idToken) {
   if (header.alg !== 'RS256') throw new Error('Bad alg');
   const certs = await getFirebaseCerts();
   const cert = certs[header.kid];
-  if (!cert) throw new Error('Unknown key id');
+  if (!cert) throw new Error('Unknown key id ' + header.kid);
+  // Extract the public key from the X.509 cert first — passing a cert straight to
+  // verify() throws on Node 18+/OpenSSL 3.
+  const pubKey = crypto.createPublicKey(cert);
   const ok = crypto.createVerify('RSA-SHA256')
     .update(parts[0] + '.' + parts[1])
-    .verify(cert, b64urlToBuf(parts[2]));
+    .verify(pubKey, b64urlToBuf(parts[2]));
   if (!ok) throw new Error('Bad signature');
   const now = Math.floor(Date.now() / 1000);
   if (typeof payload.exp !== 'number' || payload.exp <= now) throw new Error('Token expired');
@@ -302,12 +305,13 @@ const io = new Server(server, {
   // Express middleware: identity comes ONLY from the verified token, never from the request body/query.
   async function requireAuth(req, res, next) {
     const m = (req.headers.authorization || '').match(/^Bearer (.+)$/);
-    if (!m) return res.status(401).json({ error: 'Unauthorized' });
+    if (!m) { console.warn('[auth] no bearer header on', req.method, req.path); return res.status(401).json({ error: 'Unauthorized' }); }
     try {
       const decoded = await verifyFirebaseToken(m[1]);
       req.user = await findOrCreateUserByToken(decoded);
       next();
     } catch (e) {
+      console.error('[auth] reject', req.method, req.path, '-', e.message);
       res.status(401).json({ error: 'Unauthorized' });
     }
   }
@@ -781,6 +785,7 @@ const io = new Server(server, {
       socket.data.user = await findOrCreateUserByToken(decoded);
       next();
     } catch (e) {
+      console.error('[socket auth] reject -', e.message);
       next(new Error('unauthorized'));
     }
   });
