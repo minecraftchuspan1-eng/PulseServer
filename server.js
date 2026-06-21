@@ -29,7 +29,7 @@ function isValidImageData(s) {
 // We validate the RS256 JWT against Google's public certs ourselves.
 // ---------------------------------------------------------------------------
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'so2market';
-const FIREBASE_CERTS_URL = 'https://www.googleapis.com/robots/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+const FIREBASE_CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 let firebaseCerts = {};
 let firebaseCertsExpiry = 0;
 
@@ -45,9 +45,10 @@ function httpsGetJson(url) {
 
 async function getFirebaseCerts() {
   if (Date.now() < firebaseCertsExpiry && Object.keys(firebaseCerts).length) return firebaseCerts;
-  const { data, headers } = await httpsGetJson(FIREBASE_CERTS_URL);
-  firebaseCerts = JSON.parse(data);
-  const cc = headers['cache-control'] || '';
+  const resp = await httpsGetJson(FIREBASE_CERTS_URL);
+  if (resp.status !== 200) throw new Error('Firebase certs responded ' + resp.status);
+  firebaseCerts = JSON.parse(resp.data);
+  const cc = resp.headers['cache-control'] || '';
   const m = cc.match(/max-age=(\d+)/);
   firebaseCertsExpiry = Date.now() + (m ? parseInt(m[1], 10) * 1000 : 3600 * 1000);
   return firebaseCerts;
