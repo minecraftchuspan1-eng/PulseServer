@@ -251,6 +251,28 @@ try {
     // If we restored a session after the initial render, (re)load token-gated lists.
     if (u && currentUser) { loadAllUsers(); loadRecentUsers(); }
   });
+  // Authoritative session state. Without a live Firebase token the server rejects
+  // everything (401/400), so never sit in a localStorage-only "logged in" state.
+  auth.onAuthStateChanged(async (u) => {
+    if (u) {
+      if (!currentUser) {
+        try {
+          const res = await authFetch(API + '/api/auth/google', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+          });
+          if (res.ok) { const d = await res.json(); setUser(d.user); }
+        } catch (e) {}
+      }
+    } else if (currentUser || localStorage.getItem('pulse_user')) {
+      // Stale login with no Firebase session -> force a fresh Google sign-in.
+      localStorage.removeItem('pulse_user');
+      currentUser = null;
+      if (socket) { try { socket.disconnect(); } catch (e) {} }
+      appScreen.classList.add('hidden');
+      authScreen.classList.remove('hidden');
+      authError.textContent = 'Session expired — please sign in again';
+    }
+  });
 } catch (e) {
   console.error('Firebase init error:', e);
 }
