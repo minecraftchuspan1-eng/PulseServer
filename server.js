@@ -281,9 +281,10 @@ const io = new Server(server, {
 
   function userIsAdmin(user) {
     if (!user) return false;
-    const uname = (user.username || '').toLowerCase();
+    // Admin is determined ONLY by the verified Google email (immutable, from the token).
+    // Never by username — users can rename themselves, which was an escalation hole.
     const email = (user.email || '').toLowerCase();
-    return ADMIN_USERNAMES.includes(uname) || (!!email && ADMIN_EMAILS.includes(email));
+    return !!email && ADMIN_EMAILS.includes(email);
   }
 
   // Look up the user by the verified Firebase uid; create the account on first sign-in.
@@ -414,6 +415,7 @@ const io = new Server(server, {
     const userId = req.user.id;
     if (!username) return res.status(400).json({ error: 'Required' });
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return res.status(400).json({ error: '3-20 chars, letters, numbers, underscore' });
+    if (ADMIN_USERNAMES.includes(username.toLowerCase())) return res.status(409).json({ error: 'Username reserved' });
     try {
       const { rows: existingUsers } = await db.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2', [username, userId]);
       const { rows: existingChats } = await db.query('SELECT id FROM chats WHERE LOWER(username) = LOWER($1)', [username]);
