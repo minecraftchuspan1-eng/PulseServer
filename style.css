@@ -2312,7 +2312,7 @@ body,
 .user-item:hover .avatar,
 .chat-item:hover .chat-item-icon,
 .chat-avatar:hover {
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.25);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
 }
 
 /* Continuously alive gradient on primary action buttons */
@@ -2418,15 +2418,12 @@ body { background: #0b0b12; }
 
 /* ---- List items + active state ---- */
 .user-item:hover,
-.chat-item:hover { background: rgba(168,85,247,0.10); }
+.chat-item:hover { background: var(--bg-hover); }
 
 .chat-item.active {
   background: var(--grad-soft);
   box-shadow: inset 3px 0 0 0 var(--purple);
 }
-.user-item:hover .avatar,
-.chat-item:hover .chat-item-icon,
-.chat-avatar:hover { box-shadow: 0 0 0 3px rgba(168,85,247,0.35); }
 
 /* ---- Chat area + header ---- */
 .chat-area {
@@ -2632,6 +2629,9 @@ body { background: #0b0b12; }
 
 /* ---- Scroll zone with the sections ---- */
 .sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 3px; }
 .sidebar-scroll .chats-section,
 .sidebar-scroll .online-users-section,
 .sidebar-scroll .recent-section {
