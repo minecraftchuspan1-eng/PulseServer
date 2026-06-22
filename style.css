@@ -2544,3 +2544,194 @@ body { background: #0b0b12; }
   border-color: rgba(168,85,247,0.22);
 }
 
+
+/* ============================================================
+   AURORA GLASS LAYOUT  (new interface structure)
+   ============================================================ */
+#app-screen {
+  display: block;
+  position: relative;
+  height: 100dvh;
+  padding: 14px;
+  overflow: hidden;
+}
+
+/* Living purple aurora behind the floating panels */
+.aurora { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.aurora-blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.5; }
+.aurora-blob.b1 { width: 46vw; height: 46vw; left: -8vw; top: -12vw; background: radial-gradient(circle, #8b5cf6, transparent 70%); animation: auroraFloat 22s ease-in-out infinite; }
+.aurora-blob.b2 { width: 42vw; height: 42vw; right: -10vw; top: 18vh; background: radial-gradient(circle, #d946ef, transparent 70%); animation: auroraFloat 27s ease-in-out infinite reverse; }
+.aurora-blob.b3 { width: 38vw; height: 38vw; left: 26vw; bottom: -16vw; background: radial-gradient(circle, #6366f1, transparent 70%); animation: auroraFloat 31s ease-in-out infinite; }
+@keyframes auroraFloat {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(6vw, 4vh) scale(1.1); }
+  66% { transform: translate(-4vw, -3vh) scale(0.95); }
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 14px;
+  height: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+/* ---- Sidebar: floating glass panel ---- */
+.sidebar {
+  width: 340px;
+  min-width: 340px;
+  height: 100%;
+  border: 1px solid rgba(168,85,247,0.2);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(26,22,44,0.82), rgba(13,12,22,0.86));
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(10,8,22,0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 6px 6px 12px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 11px;
+  background: var(--grad); color: #fff; font-weight: 800; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 16px rgba(168,85,247,0.45);
+  flex-shrink: 0;
+}
+.sidebar-brand h2 { flex: 1; font-size: 20px; margin: 0; }
+.sidebar-brand #settings-btn { color: #b9a6e0; }
+
+.profile-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; margin-bottom: 10px;
+  border-radius: 16px;
+  background: rgba(168,85,247,0.08);
+  border: 1px solid rgba(168,85,247,0.16);
+}
+.profile-card .user-avatar { width: 42px; height: 42px; box-shadow: 0 0 0 2px rgba(168,85,247,0.45); flex-shrink: 0; }
+.profile-meta { display: flex; flex-direction: column; min-width: 0; }
+.profile-meta #my-nickname { font-size: 14px; font-weight: 700; }
+.profile-sub { font-size: 11px; color: #6ee7a8; }
+
+/* ---- Search pill ---- */
+.sidebar-search { position: relative; padding: 0 2px 10px; }
+.sidebar-search .search-ic { position: absolute; left: 16px; top: 11px; color: #9b86c8; pointer-events: none; }
+.sidebar-search input {
+  width: 100% !important;
+  padding: 11px 14px 11px 40px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(168,85,247,0.2);
+  box-sizing: border-box;
+}
+
+/* ---- Scroll zone with the sections ---- */
+.sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
+.sidebar-scroll .chats-section,
+.sidebar-scroll .online-users-section,
+.sidebar-scroll .recent-section {
+  flex: none !important;
+  max-height: none !important;
+  border: none !important;
+  padding: 6px 2px;
+}
+.sidebar-scroll h3 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #9b86c8;
+  padding: 6px 6px;
+}
+.sec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 8px rgba(168,85,247,0.7); flex-shrink: 0; }
+
+/* ---- Chat area: floating glass panel ---- */
+.chat-area {
+  flex: 1; min-width: 0; height: 100%;
+  border: 1px solid rgba(168,85,247,0.2);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(20,17,34,0.7), rgba(13,12,22,0.8));
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 60px rgba(10,8,22,0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.chat-header { background: transparent !important; border-bottom: 1px solid rgba(168,85,247,0.16) !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.chat-avatar { box-shadow: 0 0 0 2px rgba(168,85,247,0.4); }
+
+/* ---- Empty state ---- */
+.placeholder-logo {
+  width: 96px; height: 96px; border-radius: 30px;
+  background: var(--grad); background-size: 180% 180%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 54px; font-weight: 800; color: #fff;
+  box-shadow: 0 20px 50px rgba(168,85,247,0.5);
+  animation: gradientShift 7s var(--ease-in-out) infinite;
+}
+
+/* ---- Floating composer pill ---- */
+.message-input-area {
+  position: relative;
+  margin: 10px;
+  padding: 6px 6px 6px 8px;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid rgba(168,85,247,0.24);
+  border-radius: 26px;
+  background: rgba(255,255,255,0.05) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(10,8,22,0.4);
+}
+#message-input {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 10px 6px;
+}
+#send-btn {
+  width: 44px; height: 44px; min-width: 44px;
+  padding: 0 !important;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background-image: var(--grad);
+  box-shadow: 0 6px 18px rgba(168,85,247,0.5);
+}
+#send-btn svg { position: relative; left: -1px; }
+#photo-upload-btn {
+  width: 40px; height: 40px; min-width: 40px;
+  padding: 0 !important;
+  border-radius: 50%;
+  background: rgba(168,85,247,0.14) !important;
+  order: -1;
+}
+#photo-upload-btn svg { stroke: #c4b5fd !important; }
+.photo-pending-bar {
+  position: absolute; left: 8px; right: 8px; bottom: calc(100% + 8px);
+  border-radius: 14px;
+  border: 1px solid rgba(168,85,247,0.24);
+}
+.typing-indicator { padding-left: 18px; }
+
+/* ---- Mobile: full-bleed, no floating gaps ---- */
+@media (max-width: 768px) {
+  #app-screen { padding: 0; }
+  .app-shell { gap: 0; height: 100dvh; }
+  .sidebar { width: 100%; min-width: 100%; border: none; border-radius: 0; padding: 10px; }
+  /* Restore single-pane behaviour (base .chat-area display:flex would otherwise break it) */
+  .chat-area {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    border: none;
+    border-radius: 0;
+    background: #0b0b12;
+  }
+  .chat-area.mobile-chat-open { display: flex; }
+  .aurora-blob { filter: blur(50px); }
+}
