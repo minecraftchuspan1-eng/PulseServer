@@ -2341,3 +2341,206 @@ body,
   }
 }
 
+/* ============================================================
+   PURPLE GRADIENT THEME REFRESH
+   ============================================================ */
+:root {
+  --violet: #8b5cf6;
+  --purple: #a855f7;
+  --fuchsia: #d946ef;
+  --grad: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%);
+  --grad-soft: linear-gradient(135deg, rgba(139,92,246,0.22), rgba(217,70,239,0.12));
+  --pl-border: rgba(168,85,247,0.18);
+}
+
+/* Ambient purple-glow background */
+body { background: #0b0b12; }
+
+#app-screen {
+  background:
+    radial-gradient(1100px 620px at 100% -8%, rgba(168,85,247,0.16), transparent 60%),
+    radial-gradient(900px 540px at -8% 112%, rgba(139,92,246,0.14), transparent 60%),
+    #0b0b12;
+}
+
+/* ---- Auth screen ---- */
+#auth-screen {
+  background:
+    radial-gradient(820px 520px at 50% -12%, rgba(217,70,239,0.28), transparent 60%),
+    linear-gradient(165deg, #0b0b12 0%, #160f2e 55%, #1b1036 100%);
+  background-size: 160% 160%;
+}
+.auth-box {
+  background: rgba(24,21,40,0.72);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(168,85,247,0.28);
+  box-shadow: 0 30px 90px rgba(124,58,237,0.30);
+}
+.google-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(168,85,247,0.28);
+}
+.google-btn:hover { background: rgba(168,85,247,0.12); }
+
+/* ---- Sidebar (glass + purple tint) ---- */
+.sidebar {
+  background: linear-gradient(180deg, rgba(24,20,40,0.92), rgba(13,12,22,0.94));
+  border-right: 1px solid var(--pl-border);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.sidebar-header,
+.chats-section,
+.recent-section { border-color: var(--pl-border) !important; }
+
+.online-users-section h3,
+.recent-section h3,
+.chats-section h3 { color: rgba(192,160,255,0.65); }
+
+/* ---- Inputs ---- */
+.sidebar-search input,
+#message-input,
+.change-row input,
+.create-field input,
+.admin-search input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--pl-border);
+}
+.sidebar-search input:focus,
+#message-input:focus,
+.change-row input:focus,
+.create-field input:focus,
+.admin-search input:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.22);
+}
+
+/* ---- List items + active state ---- */
+.user-item:hover,
+.chat-item:hover { background: rgba(168,85,247,0.10); }
+
+.chat-item.active {
+  background: var(--grad-soft);
+  box-shadow: inset 3px 0 0 0 var(--purple);
+}
+.user-item:hover .avatar,
+.chat-item:hover .chat-item-icon,
+.chat-avatar:hover { box-shadow: 0 0 0 3px rgba(168,85,247,0.35); }
+
+/* ---- Chat area + header ---- */
+.chat-area {
+  background:
+    radial-gradient(700px 400px at 100% 0%, rgba(168,85,247,0.07), transparent 60%),
+    transparent;
+}
+.chat-header {
+  background: linear-gradient(180deg, rgba(24,20,40,0.85), rgba(15,13,26,0.7));
+  border-bottom: 1px solid var(--pl-border);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+/* ---- Messages ---- */
+.message.own {
+  background: var(--grad);
+  background-size: 160% 160%;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(168,85,247,0.32);
+  animation: gradientShift 8s var(--ease-in-out) infinite;
+}
+.message.own.msg-in { animation: msgInRight 0.4s var(--ease-spring) both, gradientShift 8s var(--ease-in-out) infinite; }
+.message.other {
+  background: rgba(255,255,255,0.055);
+  border: 1px solid rgba(168,85,247,0.14);
+  color: var(--text-primary);
+}
+
+/* ---- Input bar + buttons ---- */
+.message-input-area {
+  background: linear-gradient(180deg, rgba(15,13,26,0.7), rgba(20,17,34,0.92));
+  border-top: 1px solid var(--pl-border);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+#send-btn,
+.create-chat-submit,
+#photo-upload-btn,
+.change-row button,
+.avatar-upload-btn,
+.settings-admin-btn,
+.nickname-btn {
+  background-image: var(--grad);
+  background-size: 180% 180%;
+  border: none;
+  box-shadow: 0 4px 14px rgba(168,85,247,0.30);
+}
+.create-type-btn.active {
+  border-color: var(--purple);
+  color: #fff;
+  background: var(--grad-soft);
+}
+
+/* ---- Modals (glass + purple glow) ---- */
+.settings-content,
+.profile-content,
+.admin-content,
+.create-chat-content,
+.members-content,
+.confirm-box {
+  background: linear-gradient(165deg, rgba(28,24,48,0.95), rgba(15,13,26,0.97));
+  border: 1px solid rgba(168,85,247,0.26);
+  box-shadow: 0 30px 90px rgba(124,58,237,0.32);
+}
+.settings-backdrop,
+.profile-backdrop,
+.admin-backdrop,
+.create-chat-backdrop,
+.members-backdrop,
+.confirm-backdrop { background: rgba(10,8,20,0.55); }
+
+/* ---- Badges & accents ---- */
+.unread-badge { background: var(--grad); box-shadow: 0 2px 8px rgba(168,85,247,0.5); }
+.theme-option.active { border-color: var(--purple); background: var(--grad-soft); }
+.admin-tab.active { color: #fff; background: var(--grad-soft); }
+.chat-item-icon.group-icon { background: linear-gradient(135deg, #8b5cf6, #6366f1); }
+.chat-item-icon.channel-icon { background: linear-gradient(135deg, #a855f7, #d946ef); }
+
+/* ---- Purple scrollbars ---- */
+.messages-container::-webkit-scrollbar-thumb,
+.online-users-section::-webkit-scrollbar-thumb,
+.recent-section::-webkit-scrollbar-thumb,
+.sidebar::-webkit-scrollbar-thumb,
+.settings-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--violet), var(--fuchsia));
+  border-radius: 4px;
+}
+
+/* ---- Light theme: keep it purple ---- */
+[data-theme="light"] body { background: #f4f1fb; }
+[data-theme="light"] #app-screen {
+  background:
+    radial-gradient(1000px 560px at 100% -8%, rgba(168,85,247,0.14), transparent 60%),
+    radial-gradient(820px 500px at -8% 112%, rgba(139,92,246,0.12), transparent 60%),
+    #f4f1fb;
+}
+[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(248,245,255,0.92));
+  border-right: 1px solid rgba(168,85,247,0.18);
+}
+[data-theme="light"] .chat-header,
+[data-theme="light"] .message-input-area {
+  background: rgba(255,255,255,0.8);
+}
+[data-theme="light"] .message.other {
+  background: #fff;
+  border: 1px solid rgba(168,85,247,0.16);
+}
+[data-theme="light"] .sidebar-search input,
+[data-theme="light"] #message-input,
+[data-theme="light"] .change-row input,
+[data-theme="light"] .create-field input {
+  background: #fff;
+  border-color: rgba(168,85,247,0.22);
+}
+
