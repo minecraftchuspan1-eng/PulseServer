@@ -2066,29 +2066,12 @@ button {
 .user-item,
 .chat-item,
 .search-results .user-item {
-  transition: background 0.18s, transform 0.16s var(--ease-out);
+  transition: background 0.18s;
 }
 
 .user-item:hover,
 .chat-item:hover {
-  transform: translateX(4px);
-}
-
-.user-item:active,
-.chat-item:active {
-  transform: translateX(4px) scale(0.99);
-}
-
-.user-item .avatar,
-.user-avatar,
-.chat-item-icon,
-.chat-avatar {
-  transition: transform 0.2s var(--ease-spring);
-}
-
-.user-item:hover .avatar,
-.chat-item:hover .chat-item-icon {
-  transform: scale(1.08);
+  background: var(--bg-hover);
 }
 
 /* Online pulse */
@@ -2306,13 +2289,6 @@ body,
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: textSheen 5s linear infinite;
-}
-
-/* Avatar hover ring */
-.user-item:hover .avatar,
-.chat-item:hover .chat-item-icon,
-.chat-avatar:hover {
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
 }
 
 /* Continuously alive gradient on primary action buttons */
